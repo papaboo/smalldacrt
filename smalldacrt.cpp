@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 #include <vector>
 #include <algorithm>
@@ -105,14 +106,14 @@ struct AABB {
         return farT < nearT ? -1e30 : (nearT <= 0 ? farT : nearT);
     }
 
-    inline std::string ToString() {
+    inline std::string ToString() const {
         std::ostringstream out;
         out << "[min: " << min.ToString() << ", max: " << max.ToString() + "]";
         return out.str();
     }
 };
 
-inline AABB Union(const AABB& lhs, const AABB& rhs) {
+inline AABB Intersection(const AABB& lhs, const AABB& rhs) {
     return AABB(Vector3(std::max(lhs.min.x, rhs.min.x),
                         std::max(lhs.min.y, rhs.min.y),
                         std::max(lhs.min.z, rhs.min.z)),
@@ -134,7 +135,7 @@ inline int ToByte(float v) {
     return int(pow(Clamp01(v),1/2.2)*255+.5);
 }
 
-const int WIDTH = 640, HEIGHT = 480, SPHERES = 2000;
+const int WIDTH = 640, HEIGHT = 480, SPHERES = 20000;
 int sqrtSamples;
 int samples;
 
@@ -199,7 +200,7 @@ Sphere* CreateSpheres() {
     spheres[7] = Sphere(16.5,Vector3(73,16.5,78),        Vector3(),Vector3(1,1,1)*.999, REFRACTING); // Glas
     spheres[8] = Sphere(16.5,Vector3(27,16.5,47),        Vector3(),Vector3(1,1,1)*.999, SPECULAR) ;// Mirror
 
-    for (int s = 9; s < SPHERES; ++s) {
+    for (int s = 7; s < SPHERES; ++s) {
         // Create weird random spheres
         Vector3 pos = Vector3(Rand01() * 100.0 , Rand01() * 100.0 , Rand01() * 100.0 + 50.0);
         Color c = Color(Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f);
@@ -215,18 +216,15 @@ Sphere* CreateSpheres() {
  * Returns the split pivot.
  */
 int SplitSpheres(Sphere* spheres, int* sphereIDs, int spherePivot, float median, bool (*test)(Vector3&, float)) {
-    int headPtr = 0, tailPtr = spherePivot-1;
+    int headPtr = 0, tailPtr = spherePivot;
     while (headPtr < tailPtr) {
-        while (test(spheres[sphereIDs[headPtr]].position, median) && headPtr < tailPtr) {
+        while (headPtr < tailPtr && test(spheres[sphereIDs[headPtr]].position, median)) {
             ++headPtr;
-            // fprintf(stderr, "headPtr: %d\n", headPtr);
         }
-        while (!test(spheres[sphereIDs[tailPtr]].position, median) && headPtr < tailPtr) {
+        do {
             --tailPtr;
-            // fprintf(stderr, "tailPtr: %d\n", tailPtr);
-        }
-        /*if (headPtr < tailPtr) */ std::swap(*(sphereIDs + headPtr), *(sphereIDs + tailPtr));
-        // fprintf(stderr, "swap(%d, %d)\n", headPtr, tailPtr);
+        } while (headPtr < tailPtr && !test(spheres[sphereIDs[tailPtr]].position, median));
+        if (headPtr < tailPtr) std::swap(*(sphereIDs + headPtr), *(sphereIDs + tailPtr));
     }
     return headPtr;
 }
@@ -239,11 +237,11 @@ bool RightSplitSpheresY(Vector3& pos, float median) { return pos.y > median; }
 bool RightSplitSpheresZ(Vector3& pos, float median) { return pos.z > median; }
 
 int SplitRays(Ray* rays, int* rayIDs, int rayPivot, AABB& aabb) {
-    int headPtr = 0, tailPtr = rayPivot-1;
+    int headPtr = 0, tailPtr = rayPivot;
     while (headPtr < tailPtr) {
-        while (aabb.Intersect(rays[rayIDs[headPtr]]) > 0 && headPtr < tailPtr) ++headPtr;
-        while (aabb.Intersect(rays[rayIDs[tailPtr]]) <= 0 && headPtr < tailPtr) --tailPtr;
-        std::swap(*(rayIDs + headPtr), *(rayIDs + tailPtr));
+        while (headPtr < tailPtr && aabb.Intersect(rays[rayIDs[headPtr]]) > 0) ++headPtr;
+        do { --tailPtr; } while (headPtr < tailPtr && aabb.Intersect(rays[rayIDs[tailPtr]]) <= 0);
+        if (headPtr < tailPtr) std::swap(*(rayIDs + headPtr), *(rayIDs + tailPtr));
     }
     return headPtr;
 }
@@ -257,14 +255,14 @@ void Dacrt(Ray* rays, int* rayIDs, int rayPivot,
            Sphere* spheres, int* sphereIDs, int spherePivot,
            float* maxTs, int* spheresHit, const AABB& bounds) {
 
-    static int level = 0;
+    static int level = -1;
+    ++level;
+
     // PrintWhiteSpace(level);
     // fprintf(stderr, "DACRT(rayPivot: %d, spherePivot: %d)\n", rayPivot, spherePivot);
 
-    ++level;
-    
     if (rayPivot < 128 || spherePivot < 48) { // Dacrt
-    //if (true) { // Exhaustive search
+        //if (true) { // Exhaustive search
         // Naive intersection
         for (int r = 0; r < rayPivot; ++r) {
             int rayID = rayIDs[r];
@@ -282,7 +280,7 @@ void Dacrt(Ray* rays, int* rayIDs, int rayPivot,
     } else { // Perform DACRT
 
         // PrintWhiteSpace(level);
-        // fprintf(stderr, "AABB %s\n", aabb.ToString().c_str());
+        // fprintf(stderr, "Bounds %s\n", bounds.ToString().c_str());
             
         Vector3 boundSize = bounds.max - bounds.min;
         // left side
@@ -305,20 +303,22 @@ void Dacrt(Ray* rays, int* rayIDs, int rayPivot,
             AABB leftAABB = AABB(spheres[sphereIDs[0]]);
             for (int s = 1; s < newSpherePivot; ++s)
                 leftAABB.Extend(spheres[sphereIDs[s]]);
-            //leftAABB = Union(leftAABB, halvedBounds);
             
             // PrintWhiteSpace(level);
             // fprintf(stderr, "halvedBounds %s\n", halvedBounds.ToString().c_str());
             // PrintWhiteSpace(level);
             // fprintf(stderr, "LeftAABB %s\n", leftAABB.ToString().c_str());            
+            // PrintWhiteSpace(level);
+            // fprintf(stderr, "InterAABB %s\n", Intersection(leftAABB, halvedBounds).ToString().c_str());            
             
             // determine active rays
             int newRayPivot = SplitRays(rays, rayIDs, rayPivot, leftAABB);
 
-            // recurse
+            // recurse: use intersection of halved and calculated bounds to
+            // ensure smaller problem domain.
             Dacrt(rays, rayIDs, newRayPivot,
                   spheres, sphereIDs, newSpherePivot,
-                  maxTs, spheresHit, leftAABB);
+                  maxTs, spheresHit, Intersection(leftAABB, halvedBounds));
         }
 
         // right side
@@ -341,15 +341,21 @@ void Dacrt(Ray* rays, int* rayIDs, int rayPivot,
             AABB rightAABB = AABB(spheres[sphereIDs[0]]);
             for (int s = 1; s < newSpherePivot; ++s)
                 rightAABB.Extend(spheres[sphereIDs[s]]);
-            //rightAABB = Union(rightAABB, halvedBounds);
             
+            // PrintWhiteSpace(level);
+            // fprintf(stderr, "halvedBounds %s\n", halvedBounds.ToString().c_str());
+            // PrintWhiteSpace(level);
+            // fprintf(stderr, "RightAABB %s\n", rightAABB.ToString().c_str());            
+            // PrintWhiteSpace(level);
+            // fprintf(stderr, "InterAABB %s\n", Intersection(rightAABB, halvedBounds).ToString().c_str());            
+
             // determine active rays
             int newRayPivot = SplitRays(rays, rayIDs, rayPivot, rightAABB);
 
             // recurse
             Dacrt(rays, rayIDs, newRayPivot,
                   spheres, sphereIDs, newSpherePivot,
-                  maxTs, spheresHit, rightAABB);
+                  maxTs, spheresHit, Intersection(rightAABB, halvedBounds));
         }
     }
 
@@ -404,54 +410,6 @@ int main(int argc, char *argv[]){
           spheres, sphereIDs, SPHERES,
           maxTs, spheresHit, sceneBounds);
     Radiance(rays, spheres, spheresHit, colors);
-
-    /*
-    int spherePivot = SPHERES;
-    float median = 50;
-    for (int s = 0; s < spherePivot; ++s)
-        fprintf(stderr, "%d: %s\n", sphereIDs[s], spheres[sphereIDs[s]].ToString().c_str());
-    fprintf(stderr, "\n");
-    
-    int newPivot = SplitSpheres(spheres, sphereIDs, spherePivot, median, LeftSplitSpheresX);
-    fprintf(stderr, "\n");
-    fprintf(stderr, "new pivot %d\n", newPivot);
-
-    for (int s = 0; s < spherePivot; ++s)
-        fprintf(stderr, "%d: %s\n", sphereIDs[s], spheres[sphereIDs[s]].ToString().c_str());
-    fprintf(stderr, "\n");
-    */
-
-    /*
-    Vector3 origin(-4,0,0);
-    Ray rs[] = {Ray(origin, Vector3(1, -0.5f, -0.5f)),
-                Ray(origin, Vector3(1, -0.5f,  0.0f)),
-                Ray(origin, Vector3(1, -0.5f,  0.5f)),
-                Ray(origin, Vector3(1,  0.0f, -0.5f)),
-                Ray(origin, Vector3(1,  0.0f,  0.0f)),
-                Ray(origin, Vector3(1,  0.0f,  0.5f)),
-                Ray(origin, Vector3(1,  0.5f, -0.5f)),
-                Ray(origin, Vector3(1,  0.5f,  0.0f)),
-                Ray(origin, Vector3(1,  0.5f,  0.5f))};
-    int rIDs[] = {0, 1, 2, 3, 4, 5, 6, 7, 8};
-    AABB a(Vector3(-2.5, -0.5, -2), Vector3(0.5, 0.5, 0.5));
-    int rayPivot = 9;
-
-    for (int r = 0; r < rayPivot; ++r) {
-        Ray c = rs[rIDs[r]];
-        fprintf(stderr, "%d: %s intersects %d\n", rIDs[r], c.ToString().c_str(), a.Intersect(c) <= 0 ? 0 : 1);
-    }
-    fprintf(stderr, "\n");
-
-    int newPivot = SplitRays(rs, rIDs, rayPivot, a);
-    fprintf(stderr, "new pivot %d\n\n", newPivot);
-
-    for (int r = 0; r < rayPivot; ++r) {
-        Ray c = rs[rIDs[r]];
-        fprintf(stderr, "%d: %s intersects %d\n", rIDs[r], c.ToString().c_str(), a.Intersect(c) <= 0 ? 0 : 1);
-    }
-    fprintf(stderr, "\n");
-    */
-
 
     // Combine colors into image
     Color* cs = new Color[WIDTH * HEIGHT];
