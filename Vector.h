@@ -71,7 +71,7 @@ struct Vec3 {
                        x * rhs.y - y * rhs.x);
     }
 
-    inline std::string ToString() {
+    inline std::string ToString() const {
         std::ostringstream out;
         out << "[" << x << ", " << y << ", " << z << "]";
         return out.str();

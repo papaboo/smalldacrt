@@ -32,7 +32,7 @@ struct Ray {
         return origin + dir * t;
     }
 
-    inline std::string ToString() {
+    inline std::string ToString() const {
         std::ostringstream out;
         out << "[origin: " << origin.ToString() << ", direction: " << dir.ToString() + "]";
         return out.str();
