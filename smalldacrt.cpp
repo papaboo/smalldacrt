@@ -12,7 +12,6 @@
 #include <stdio.h>
 #include <iostream>
 #include <sstream>
-#include <stdexcept>
 
 #include <vector>
 #include <algorithm>
@@ -218,13 +217,13 @@ Sphere* CreateSpheres() {
 int SplitSpheres(Sphere* spheres, int* sphereIDs, int spherePivot, float median, bool (*test)(Vector3&, float)) {
     int headPtr = 0, tailPtr = spherePivot;
     while (headPtr < tailPtr) {
-        while (headPtr < tailPtr && test(spheres[sphereIDs[headPtr]].position, median)) {
+        while (headPtr < tailPtr && test(spheres[sphereIDs[headPtr]].position, median))
             ++headPtr;
-        }
-        do {
+        do
             --tailPtr;
-        } while (headPtr < tailPtr && !test(spheres[sphereIDs[tailPtr]].position, median));
-        if (headPtr < tailPtr) std::swap(*(sphereIDs + headPtr), *(sphereIDs + tailPtr));
+        while (headPtr < tailPtr && !test(spheres[sphereIDs[tailPtr]].position, median));
+        if (headPtr < tailPtr) 
+            std::swap(*(sphereIDs + headPtr), *(sphereIDs + tailPtr));
     }
     return headPtr;
 }
@@ -239,9 +238,13 @@ bool RightSplitSpheresZ(Vector3& pos, float median) { return pos.z > median; }
 int SplitRays(Ray* rays, int* rayIDs, int rayPivot, AABB& aabb) {
     int headPtr = 0, tailPtr = rayPivot;
     while (headPtr < tailPtr) {
-        while (headPtr < tailPtr && aabb.Intersect(rays[rayIDs[headPtr]]) > 0) ++headPtr;
-        do { --tailPtr; } while (headPtr < tailPtr && aabb.Intersect(rays[rayIDs[tailPtr]]) <= 0);
-        if (headPtr < tailPtr) std::swap(*(rayIDs + headPtr), *(rayIDs + tailPtr));
+        while (headPtr < tailPtr && aabb.Intersect(rays[rayIDs[headPtr]]) > 0) 
+            ++headPtr;
+        do 
+            --tailPtr; 
+        while (headPtr < tailPtr && aabb.Intersect(rays[rayIDs[tailPtr]]) <= 0);
+        if (headPtr < tailPtr) 
+            std::swap(*(rayIDs + headPtr), *(rayIDs + tailPtr));
     }
     return headPtr;
 }
