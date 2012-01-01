@@ -49,10 +49,13 @@ int sqrtSamples;
 int samples;
 
 int main(int argc, char *argv[]){
-    Cone c = Cone(Vector3(-2, 0, 0), PI / 4.0f, Vector3(1,0,0));
+    Cone c = Cone(Vector3(-2, 0, 0), Vector3(1,0,0), PI / 4.0f);
     Sphere s = Sphere(1, Vector3(-2, 1, 0));
     
     fprintf(stderr, "Sphere and cone intersected? %d\n", (int)c.DoesIntersect(s));
+
+    Ray r = Ray(Vector3(-4,0,0), Vector3(1,0,0));
+    fprintf(stderr, "Ray included in cone? %d\n", (int)c.Includes(r));
 
     return 0;
 }
