@@ -10,8 +10,8 @@ struct Sphere {
 
     Sphere() {}
 
-    Sphere(const float r, const Vector3& p, const Vector3& e, 
-           const Vector3& c, const ReflectionType rt) 
+    Sphere(const float r, const Vector3& p, const Vector3& e = Vector3(0,0,0), 
+           const Vector3& c = Vector3(0,0,1), const ReflectionType rt = DIFFUSE) 
         : radius(r), position(p), emission(e), color(c), reflection(rt) {}
     
     // returns distance, 0 if nohit
