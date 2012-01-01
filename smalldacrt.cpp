@@ -1,6 +1,6 @@
-// smalldacrt. A Divide and Conquer RayTracer as described by *** and with an
-// implementation based on smallpt, a path tracer be Kevin Beason. 
-// (But written slightly more human readable)
+// smalldacrt. A Divide and Conquer RayTracer as described by Benjamin More and
+// with an implementation based on smallpt, a path tracer be Kevin Beason. (But
+// written slightly more human readable)
 
 // Compile g++ -O2 smalldacrt.cpp -o smalldacrt
 // Usage: ./smalldacrt 16 && xv image.ppm
@@ -17,100 +17,9 @@
 #include <algorithm>
 
 #include "Vector.h"
-
-struct Ray {
-    Vector3 origin;
-    Vector3 dir;
-
-    Ray() : origin(Vector3()), dir(Vector3()) {}
-
-    Ray(const Vector3& o, const Vector3& d) 
-        : origin(o), dir(d) {}
-
-    inline Vector3 PositionAt(float t) {
-        return origin + dir * t;
-    }
-
-    inline std::string ToString() const {
-        std::ostringstream out;
-        out << "[origin: " << origin.ToString() << ", direction: " << dir.ToString() + "]";
-        return out.str();
-    }
-};
-
-enum ReflectionType {DIFFUSE, SPECULAR, REFRACTING};
-
-struct Sphere {
-    float radius;
-    Vector3 position, emission, color;
-    ReflectionType reflection;
-
-    Sphere() {}
-
-    Sphere(const float r, const Vector3& p, const Vector3& e, 
-           const Vector3& c, const ReflectionType rt) 
-        : radius(r), position(p), emission(e), color(c), reflection(rt) {}
-    
-    // returns distance, 0 if nohit
-    inline float Intersect(const Ray& r) const {
-        // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
-        const float eps = 1e-4;
-        Vector3 dir = position - r.origin;
-        float b = Dot(dir, r.dir);
-        float det = b*b - Dot(dir, dir) + radius * radius;
-        if (det < 0) return 0; else det = sqrt(det);
-        float t;
-        return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0);
-    }
-
-    inline std::string ToString() {
-        std::ostringstream out;
-        out << "[radius: " << radius << ", position: " << position.ToString() + "]";
-        return out.str();
-    }
-};
-
-struct AABB {
-    Vector3 min;
-    Vector3 max;
-    
-    AABB(const Vector3& min, const Vector3& max) 
-        : min(min), max(max) {}
-
-    AABB(const Sphere& s)
-        : min(s.position - s.radius), max(s.position + s.radius) {}
-
-    inline void Extend(const Sphere& s) {
-        min.x = std::min(min.x, s.position.x - s.radius);
-        min.y = std::min(min.y, s.position.y - s.radius);
-        min.z = std::min(min.z, s.position.z - s.radius);
-
-        max.x = std::max(max.x, s.position.x + s.radius);
-        max.y = std::max(max.y, s.position.y + s.radius);
-        max.z = std::max(max.z, s.position.z + s.radius);
-    }
-
-    inline float Intersect(const Ray& ray) const {
-        Vector3 minTs = (min - ray.origin) / ray.dir;
-        Vector3 maxTs = (max - ray.origin) / ray.dir;
-        
-        float nearT = std::min(minTs.x, maxTs.x);
-        nearT = std::max(nearT, std::min(minTs.y, maxTs.y));
-        nearT = std::max(nearT, std::min(minTs.z, maxTs.z));
-
-        float farT = std::max(minTs.x, maxTs.x);
-        farT = std::min(farT, std::max(minTs.y, maxTs.y));
-        farT = std::min(farT, std::max(minTs.z, maxTs.z));
-        
-        return farT < nearT ? -1e30 : (nearT <= 0 ? farT : nearT);
-    }
-
-    inline std::string ToString() const {
-        std::ostringstream out;
-        out << "[min: " << min.ToString() << ", max: " << max.ToString() + "]";
-        return out.str();
-    }
-};
+#include "Ray.h"
+#include "Sphere.h"
+#include "AABB.h"
 
 inline AABB Intersection(const AABB& lhs, const AABB& rhs) {
     return AABB(Vector3(std::max(lhs.min.x, rhs.min.x),
@@ -199,7 +108,7 @@ Sphere* CreateSpheres() {
     spheres[7] = Sphere(16.5,Vector3(73,16.5,78),        Vector3(),Vector3(1,1,1)*.999, REFRACTING); // Glas
     spheres[8] = Sphere(16.5,Vector3(27,16.5,47),        Vector3(),Vector3(1,1,1)*.999, SPECULAR) ;// Mirror
 
-    for (int s = 7; s < SPHERES; ++s) {
+    for (int s = 9; s < SPHERES; ++s) {
         // Create weird random spheres
         Vector3 pos = Vector3(Rand01() * 100.0 , Rand01() * 100.0 , Rand01() * 100.0 + 50.0);
         Color c = Color(Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f);
@@ -215,17 +124,18 @@ Sphere* CreateSpheres() {
  * Returns the split pivot.
  */
 int SplitSpheres(Sphere* spheres, int* sphereIDs, int spherePivot, float median, bool (*test)(Vector3&, float)) {
-    int headPtr = 0, tailPtr = spherePivot;
-    while (headPtr < tailPtr) {
-        while (headPtr < tailPtr && test(spheres[sphereIDs[headPtr]].position, median))
-            ++headPtr;
+    int head = 0, tail = spherePivot;
+    while (head < tail) {
+        while (head < tail && test(spheres[sphereIDs[head]].position, median))
+            ++head;
         do
-            --tailPtr;
-        while (headPtr < tailPtr && !test(spheres[sphereIDs[tailPtr]].position, median));
-        if (headPtr < tailPtr) 
-            std::swap(*(sphereIDs + headPtr), *(sphereIDs + tailPtr));
+            --tail;
+        while (head < tail && !test(spheres[sphereIDs[tail]].position, median));
+        if (head < tail) 
+            std::swap(*(sphereIDs + head), *(sphereIDs + tail));
     }
-    return headPtr;
+
+    return head;
 }
 
 bool LeftSplitSpheresX(Vector3& pos, float median) { return pos.x <= median; }
@@ -236,17 +146,17 @@ bool RightSplitSpheresY(Vector3& pos, float median) { return pos.y > median; }
 bool RightSplitSpheresZ(Vector3& pos, float median) { return pos.z > median; }
 
 int SplitRays(Ray* rays, int* rayIDs, int rayPivot, AABB& aabb) {
-    int headPtr = 0, tailPtr = rayPivot;
-    while (headPtr < tailPtr) {
-        while (headPtr < tailPtr && aabb.Intersect(rays[rayIDs[headPtr]]) > 0) 
-            ++headPtr;
+    int head = 0, tail = rayPivot;
+    while (head < tail) {
+        while (head < tail && aabb.Intersect(rays[rayIDs[head]]) > 0) 
+            ++head;
         do 
-            --tailPtr; 
-        while (headPtr < tailPtr && aabb.Intersect(rays[rayIDs[tailPtr]]) <= 0);
-        if (headPtr < tailPtr) 
-            std::swap(*(rayIDs + headPtr), *(rayIDs + tailPtr));
+            --tail; 
+        while (head < tail && aabb.Intersect(rays[rayIDs[tail]]) <= 0);
+        if (head < tail) 
+            std::swap(*(rayIDs + head), *(rayIDs + tail));
     }
-    return headPtr;
+    return head;
 }
 
 /**
@@ -269,7 +179,7 @@ void Dacrt(Ray* rays, int* rayIDs, int rayPivot,
         // Naive intersection
         for (int r = 0; r < rayPivot; ++r) {
             int rayID = rayIDs[r];
-            Ray charles = rays[rayID];
+            const Ray charles = rays[rayID];
             for (int s = 0; s < spherePivot; ++s) {
                 Sphere sphere = spheres[sphereIDs[s]];
 
@@ -430,5 +340,6 @@ int main(int argc, char *argv[]){
     for (int i = 0; i<WIDTH*HEIGHT; i++)
         fprintf(f,"%d %d %d ", ToByte(cs[i].x), 
                 ToByte(cs[i].y), ToByte(cs[i].z));
-    
+
+    return 0;
 }

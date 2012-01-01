@@ -2,8 +2,8 @@
 // al. (2007) and with an implementation based on smallpt, a path tracer by
 // Kevin Beason.  (But written slightly more human readable)
 
-// Compile g++ -O2 smalldacrt.cpp -o smallcone
-// Usage: ./smallcone 16 && xv image.ppm
+// Compile ./make smallcone
+// Usage: ./small 16 && xv image.ppm
 
 #define PI ((float)3.14159265358979)
 

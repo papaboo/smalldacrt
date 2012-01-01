@@ -1,0 +1,13 @@
+smalldacrt. A Divide and Conquer RayTracer as described by Benjamin Mora and
+with an implementation based on smallpt, a path tracer be Kevin Beason. (But
+written slightly more human readable)
+
+Compile ./make smalldacrt
+Usage: ./small 16 && xv image.ppm
+
+smallcone. A rayTracer using a cone ray hierarchy as described by Roger et
+al. (2007) and with an implementation based on smallpt, a path tracer by
+Kevin Beason.  (But written slightly more human readable)
+
+Compile ./make smallcone
+Usage: ./small 16 && xv image.ppm
