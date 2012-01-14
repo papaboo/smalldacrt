@@ -20,28 +20,7 @@
 #include "Ray.h"
 #include "Sphere.h"
 #include "AABB.h"
-
-inline AABB Intersection(const AABB& lhs, const AABB& rhs) {
-    return AABB(Vector3(std::max(lhs.min.x, rhs.min.x),
-                        std::max(lhs.min.y, rhs.min.y),
-                        std::max(lhs.min.z, rhs.min.z)),
-                Vector3(std::min(lhs.max.x, rhs.max.x),
-                        std::min(lhs.max.y, rhs.max.y),
-                        std::min(lhs.max.z, rhs.max.z)));
-}
-
-template <class T>
-inline T Clamp01(T v) { 
-    return v < T(0) ? T(0) : v > T(1) ? T(1) : v;
-}
-
-inline double Rand01() {
-    return (double)rand() / (double)RAND_MAX;
-}
-
-inline int ToByte(float v) {
-    return int(pow(Clamp01(v),1/2.2)*255+.5);
-}
+#include "Utils.h"
 
 const int WIDTH = 640, HEIGHT = 480, SPHERES = 20000;
 int sqrtSamples;

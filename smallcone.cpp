@@ -8,6 +8,7 @@
 #define PI ((float)3.14159265358979)
 
 #include <math.h>
+#include <cmath>
 #include <stdlib.h>
 #include <stdio.h>
 #include <iostream>
@@ -18,31 +19,12 @@
 
 #include "Vector.h"
 #include "Ray.h"
+#include "HyperRay.h"
 #include "Sphere.h"
 #include "AABB.h"
+#include "AABPenteract.h"
 #include "Cone.h"
-
-inline AABB Intersection(const AABB& lhs, const AABB& rhs) {
-    return AABB(Vector3(std::max(lhs.min.x, rhs.min.x),
-                        std::max(lhs.min.y, rhs.min.y),
-                        std::max(lhs.min.z, rhs.min.z)),
-                Vector3(std::min(lhs.max.x, rhs.max.x),
-                        std::min(lhs.max.y, rhs.max.y),
-                        std::min(lhs.max.z, rhs.max.z)));
-}
-
-template <class T>
-inline T Clamp01(T v) { 
-    return v < T(0) ? T(0) : v > T(1) ? T(1) : v;
-}
-
-inline double Rand01() {
-    return (double)rand() / (double)RAND_MAX;
-}
-
-inline int ToByte(float v) {
-    return int(pow(Clamp01(v),1/2.2)*255+.5);
-}
+#include "Utils.h"
 
 const int WIDTH = 640, HEIGHT = 480, SPHERES = 200;
 int sqrtSamples;
@@ -54,8 +36,11 @@ int main(int argc, char *argv[]){
     
     fprintf(stderr, "Sphere and cone intersected? %d\n", (int)c.DoesIntersect(s));
 
-    Ray r = Ray(Vector3(-4,0,0), Vector3(1,0,0));
+    Ray r = Ray(Vector3(-4,0,0), Vector3(1,-4,0));
     fprintf(stderr, "Ray included in cone? %d\n", (int)c.Includes(r));
 
+    HyperRay hr(r);
+    fprintf(stderr, "HyperRay: %s\n", hr.ToString().c_str());
+    
     return 0;
 }

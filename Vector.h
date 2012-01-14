@@ -53,7 +53,7 @@ struct Vec3 {
         return Vec3<T>(x / rhs.x, y / rhs.y, z / rhs.z);
     }
 
-    inline float Length() {
+    inline T Length() {
         return sqrt(x * x + y * y + z * z);
     }
 
@@ -78,12 +78,35 @@ struct Vec3 {
     }
 };
 
+typedef Vec3<float> Vector3;
+typedef Vec3<double> Color;
+
+template <class T>
+struct Vec5 {
+    T x, y, z, u, v;
+
+    Vec5() 
+        : x(0), y(0), z(0), u(0), v(0) {}
+
+    Vec5(T x, T y, T z, T u, T v) 
+        : x(x), y(y), z(z), u(u), v(v) {}
+
+    template<class C>
+    Vec5(Vec5<C> o) 
+        : x(o.x), y(o.y), z(o.z), u(o.u), v(o.v) {}
+    
+    inline std::string ToString() const {
+        std::ostringstream out;
+        out << "[" << x << ", " << y << ", " << z << ", " << u << ", " << v << "]";
+        return out.str();
+    }
+};
+
+typedef Vec5<float> Vector5;
+
 template <class T>
 inline float Dot(const Vec3<T>& lhs, const Vec3<T>& rhs) {
     return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
 }
-
-typedef Vec3<float> Vector3;
-typedef Vec3<double> Color;
 
 #endif

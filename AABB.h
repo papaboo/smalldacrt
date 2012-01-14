@@ -43,4 +43,13 @@ struct AABB {
     }
 };
 
+inline AABB Intersection(const AABB& lhs, const AABB& rhs) {
+    return AABB(Vector3(std::max(lhs.min.x, rhs.min.x),
+                        std::max(lhs.min.y, rhs.min.y),
+                        std::max(lhs.min.z, rhs.min.z)),
+                Vector3(std::min(lhs.max.x, rhs.max.x),
+                        std::min(lhs.max.y, rhs.max.y),
+                        std::min(lhs.max.z, rhs.max.z)));
+}
+
 #endif
