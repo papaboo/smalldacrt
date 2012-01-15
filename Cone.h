@@ -25,7 +25,8 @@ struct Cone {
      * http://www.geometrictools.com/Documentation/IntersectionSphereCone.pdf
      */
     inline bool DoesIntersect(const Sphere& sphere) const {
-        // @TODO Does it handle reflex cones?
+        // @TODO Handle reflex cones by inversion
+        // @TODO Add t to the formula.
         
         Vector3 U = apex - dir * (sphere.radius / sin(spreadAngle));
         Vector3 D = sphere.position - U;
