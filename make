@@ -1,3 +1,3 @@
 #!/bin/sh
 
-g++ -O2 $1 -o small
+clang++ -O2 $1 -o small
