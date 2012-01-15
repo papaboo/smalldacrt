@@ -8,7 +8,11 @@ enum Axis {posX = 0, negX = 1, posY = 2, negY = 3, posZ = 4, negZ = 5};
 struct HyperRay { // For lack of a better name
     Vector5 point;
     Axis axis;
+
+    HyperRay() : point(Vector5(0,0,0,0,0)), axis(posX) {}
+
     HyperRay(const Vector5& p, Axis a) : point(p), axis(a) {}
+
     HyperRay(const Ray& charles) {
         point.x = charles.origin.x;
         point.y = charles.origin.y;
@@ -28,6 +32,23 @@ struct HyperRay { // For lack of a better name
             point.v = charles.dir.y / absDir.z;
             axis = charles.dir.z > 0.0f ? posZ : negZ;
         }
+    }
+
+    inline Vector3 Direction() const {
+        switch(axis) {
+        case posX:
+            return Vector3(1.0f, point.u, point.v);
+        case negX:
+            return Vector3(-1.0f, point.u, point.v);
+        case posY:
+            return Vector3(point.u, 1.0f, point.v);
+        case negY:
+            return Vector3(point.u, -1.0f, point.v);
+        case posZ:
+            return Vector3(point.u, point.v, 1.0f);
+        case negZ:
+            return Vector3(point.u, point.v, -1.0f);
+        }        
     }
 
     inline std::string ToString() const {
