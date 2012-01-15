@@ -61,7 +61,7 @@ struct Vec3 {
         return *this = *this / Length();
     }
 
-    inline float Dot(const Vec3<T>& rhs) {
+    inline T Dot(const Vec3<T>& rhs) {
         return x * rhs.x + y * rhs.y + z * rhs.z;
     }
     
@@ -105,7 +105,7 @@ struct Vec5 {
 typedef Vec5<float> Vector5;
 
 template <class T>
-inline float Dot(const Vec3<T>& lhs, const Vec3<T>& rhs) {
+inline T Dot(const Vec3<T>& lhs, const Vec3<T>& rhs) {
     return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
 }
 
