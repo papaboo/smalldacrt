@@ -32,8 +32,14 @@ struct HyperCube {
     AABPenteract cube;
     Axis axis;
     float t;
-
+    
     HyperCube() : cube(AABPenteract()), axis(negZ), t(0) {}
+
+    HyperCube(Axis axis, vector<HyperRay>::iterator rayBegin, int rayOffset) 
+        : cube(AABPenteract(rayBegin[0].point)), axis(axis), t(0) {
+        for (int r = 1; r < rayOffset; ++r)
+            cube.Extent(rayBegin[r].point);
+    }
 
     inline Cone ConeBounds() const {
         Vector3 A = F(axis, cube.u.min, cube.v.max);
@@ -58,6 +64,13 @@ struct HyperCube {
         
         return Cone(apex, dir, angle);
     }
+
+    inline std::string ToString() const {
+        std::ostringstream out;
+        out << "[axis: " << axis << ", cube: " << cube.ToString() << ", t: " << t << "]";
+        return out.str();
+    }
+
 
 private:
     inline Vector3 F(Axis a, float u, float v) const {
@@ -148,6 +161,13 @@ AABB CalcAABB(vector<Sphere>::const_iterator begin,
     return res;
 }
 
+float Dacrt(vector<HyperRay>::iterator rayBegin, int rayOffset) {
+    std::cout << "Dacrt with offsets " << rayOffset << " x spherecount" << std::endl;
+
+    return 0.0f;
+}
+
+
 bool CompareRayAxis (HyperRay lhs, HyperRay rhs) { return (lhs.axis < rhs.axis);}
 
 int main(int argc, char *argv[]){
@@ -163,16 +183,38 @@ int main(int argc, char *argv[]){
 
     vector<Sphere> spheres = CreateSpheres();
     AABB B = CalcAABB(spheres.begin(), spheres.end());
-    fprintf(stderr, "World bounds: %s\n", B.ToString().c_str());
+    std::cout << "World bounds: " << B.ToString() << std::endl;
 
     // Sort rays according to axis.
     std::sort(hyperRays.begin(), hyperRays.end(), CompareRayAxis);
+    
+    // For each hypercube
+    vector<HyperRay>::iterator rayBegin = hyperRays.begin();
+    for (int a = 0; a < 6; ++a) {
+    
+        // Sort geometry according to hypercube
+        int offset = 0;
+        while (rayBegin[offset].axis == a)
+            ++offset;
+        
+        std::cout << "Offset is " << offset << " for axis " << a << std::endl;
+        if (offset == 0)
+            continue;
 
-    // Build hypercubes
+        HyperCube hc((Axis)a, rayBegin, offset);
+        std::cout << "HyberCube " << hc.ToString() << std::endl;
+        
 
-    // Sort geometry according to hypercube
+        // perform dacrt
+        Dacrt(rayBegin, offset);
+        
+        // Apply shading
+        
+        // Iterator to beginning of next ray bundle.
+        rayBegin += offset;
+    }
 
-    // perform dacrt
-     
+    // Rinse 'n repeat
+    
     return 0;
 }

@@ -23,9 +23,21 @@ struct AABPenteract {
     AABPenteract() 
         : x(Bound1D()), y(Bound1D()), z(Bound1D()), u(Bound1D()), v(Bound1D()) {}
 
+    AABPenteract(const Vector5& p)
+        : x(Bound1D(p.x, p.x)), y(Bound1D(p.y, p.y)), z(Bound1D(p.z, p.z)), 
+          u(Bound1D(p.u, p.u)), v(Bound1D(p.v, p.v)) {}
+    
     AABPenteract(const Bound1D x, const Bound1D y, const Bound1D z, 
                  const Bound1D u, const Bound1D v) 
         : x(x), y(y), z(z), u(u), v(v) {}
+
+    inline void Extent(const Vector5& p) {
+        x.min = std::min(x.min, p.x); x.max = std::max(x.max, p.x);
+        y.min = std::min(y.min, p.y); y.max = std::max(y.max, p.y);
+        z.min = std::min(z.min, p.z); z.max = std::max(z.max, p.z);
+        u.min = std::min(u.min, p.u); u.max = std::max(u.max, p.u);
+        v.min = std::min(v.min, p.v); v.max = std::max(v.max, p.v);
+    }
 
     inline std::string ToString() const {
         std::ostringstream out;
