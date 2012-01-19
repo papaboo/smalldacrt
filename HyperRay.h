@@ -3,15 +3,15 @@
 
 #include "Ray.h"
 
-enum Axis {posX = 0, negX = 1, posY = 2, negY = 3, posZ = 4, negZ = 5};
+enum SignedAxis {posX = 0, negX = 1, posY = 2, negY = 3, posZ = 4, negZ = 5};
 
 struct HyperRay { // For lack of a better name
     Vector5 point;
-    Axis axis;
+    SignedAxis axis;
 
     HyperRay() : point(Vector5(0,0,0,0,0)), axis(posX) {}
 
-    HyperRay(const Vector5& p, Axis a) : point(p), axis(a) {}
+    HyperRay(const Vector5& p, SignedAxis a) : point(p), axis(a) {}
 
     HyperRay(const Ray& charles) {
         point.x = charles.origin.x;

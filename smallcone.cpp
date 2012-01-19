@@ -28,14 +28,16 @@ using std::vector;
 #include "Cone.h"
 #include "Utils.h"
 
+enum Axis {X = 0, Y = 1, Z = 2, U = 3, V = 4};
+
 struct HyperCube {
     AABPenteract cube;
-    Axis axis;
+    SignedAxis axis;
     float t;
     
     HyperCube() : cube(AABPenteract()), axis(negZ), t(0) {}
 
-    HyperCube(Axis axis, vector<HyperRay>::iterator rayBegin, int rayOffset) 
+    HyperCube(SignedAxis axis, vector<HyperRay>::iterator rayBegin, int rayOffset) 
         : cube(AABPenteract(rayBegin[0].point)), axis(axis), t(0) {
         for (int r = 1; r < rayOffset; ++r)
             cube.Extent(rayBegin[r].point);
@@ -71,9 +73,8 @@ struct HyperCube {
         return out.str();
     }
 
-
 private:
-    inline Vector3 F(Axis a, float u, float v) const {
+    inline Vector3 F(SignedAxis a, float u, float v) const {
         switch(a) {
         case posX: return Vector3(1.0f, u, v);
         case negX: return Vector3(-1.0f, u, v);
@@ -161,8 +162,25 @@ AABB CalcAABB(vector<Sphere>::const_iterator begin,
     return res;
 }
 
-float Dacrt(vector<HyperRay>::iterator rayBegin, int rayOffset) {
-    std::cout << "Dacrt with offsets " << rayOffset << " x spherecount" << std::endl;
+float Dacrt(const HyperCube& cube, const Axis splitAxis, 
+            vector<HyperRay> rays, vector<int> rayIndices, int indexOffset, int rayCount,
+            vector<Sphere> spheres, vector<int> sphereIndices, int sphereOffset, int sphereCount) {
+    std::cout << "Dacrt with offsets " << rayCount << " x " << sphereCount << std::endl;
+
+    if (rayOffset * sphereOffset < 64) { // Magic number
+        // Perform exhaustive ray tracing
+
+    } else {
+
+        // Partition based on the distance from the apex and place far away
+        // spheres first in the vector, so we don't accidentally overwrite them
+        // while traversing.
+        
+        // Divide the hypercube and partition the rays
+        
+        // First iterate over the near chunks, then the far ones.
+
+    }
 
     return 0.0f;
 }
@@ -201,12 +219,11 @@ int main(int argc, char *argv[]){
         if (offset == 0)
             continue;
 
-        HyperCube hc((Axis)a, rayBegin, offset);
+        HyperCube hc((SignedAxis)a, rayBegin, offset);
         std::cout << "HyberCube " << hc.ToString() << std::endl;
-        
 
         // perform dacrt
-        Dacrt(rayBegin, offset);
+        // Dacrt(hc, U, rayBegin, offset, spheres.size());
         
         // Apply shading
         
