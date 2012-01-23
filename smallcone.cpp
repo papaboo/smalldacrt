@@ -37,10 +37,17 @@ struct HyperCube {
     
     HyperCube() : cube(AABPenteract()), axis(negZ), t(0) {}
 
-    HyperCube(SignedAxis axis, vector<HyperRay>::iterator rayBegin, int rayOffset) 
+    HyperCube(const SignedAxis axis, vector<HyperRay>::iterator rayBegin, int rayOffset) 
         : cube(AABPenteract(rayBegin[0].point)), axis(axis), t(0) {
         for (int r = 1; r < rayOffset; ++r)
             cube.Extent(rayBegin[r].point);
+    }
+
+    HyperCube(const SignedAxis axis, const vector<HyperRay>& hyperRays, vector<int>::iterator rayIndexBegin, const int rayOffset) 
+        : axis(axis), t(0) {
+        cube = AABPenteract(hyperRays[*rayIndexBegin].point);
+        for (int r = 1; r < rayOffset; ++r)
+            cube.Extent(hyperRays[rayIndexBegin[r]].point);
     }
 
     inline Cone ConeBounds() const {
@@ -82,12 +89,21 @@ private:
         case negY: return Vector3(u, -1.0f, v);
         case posZ: return Vector3(u, v, 1.0f);
         case negZ: return Vector3(u, v, -1.0f);
-        }        
+        }
     }
 };
 
-//const int WIDTH = 640, HEIGHT = 480;
-const int WIDTH = 4, HEIGHT = 3;
+struct Hit {
+    float t;
+    int sphereID;
+    Hit() : t(1e+30), sphereID(-1) {}
+    Hit(const float t, const int s) 
+        : t(t), sphereID(s) {}
+};
+
+// const int WIDTH = 640, HEIGHT = 480;
+//const int WIDTH = 8, HEIGHT = 6;
+const int WIDTH = 160, HEIGHT = 120;
 int sqrtSamples;
 int samples;
 
@@ -162,12 +178,48 @@ AABB CalcAABB(vector<Sphere>::const_iterator begin,
     return res;
 }
 
-float Dacrt(const HyperCube& cube, const Axis splitAxis, 
-            vector<HyperRay> rays, vector<int> rayIndices, int indexOffset, int rayCount,
-            vector<Sphere> spheres, vector<int> sphereIndices, int sphereOffset, int sphereCount) {
+void Shade(const vector<HyperRay> rays, const vector<Color*> colors, 
+           const vector<Sphere> spheres, const vector<Hit> hits) {
+    for (int i = 0; i < rays.size(); ++i) {
+        if (hits[i].sphereID == -1) {
+            *colors[i] = Color(0,0,0);
+            break;
+        }
+        
+        *colors[i] = spheres[hits[i].sphereID].color;
+        // std::cout << i << ": " << colors[i]->ToString() << std::endl;
+    }
+}
+
+// TODO replace sphere indices with sphere pointers, since we're only using that
+// index for spheres.
+void Exhaustive(const vector<HyperRay> &rays, vector<int> &rayIndices, const int indexOffset, const int indexCount,
+                const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
+                vector<Hit> &hits) {
+    
+    for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
+        int rayID = rayIndices[i];
+        const Ray charles = rays[rayID].ToRay();
+        std::cout << rayID << ": " << charles.ToString() << std::endl;
+        // std::cout << "rayID: " << rayID << " = " << charles.ToString() << std::endl;
+        for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
+            //std::cout << "  sphere: " << s << std::endl;
+            const Sphere& sphere = spheres[sphereIDs[s]];
+            float t = sphere.Intersect(charles);
+            if (0 < t && t < hits[rayID].t)
+                hits[rayID] = Hit(t, s);
+        }
+        // std::cout << "ray " << rayID << " hit sphere " << hits[rayID].sphereID << " with color " << spheres[sphereIDs[hits[rayID].sphereID]].color.ToString() << std::endl;
+    }
+};
+
+float Dacrt(const HyperCube& cube, const Axis splitAxis, const float farDistance,
+            const vector<HyperRay> &rays, vector<int> &rayIndices, const int indexOffset, const int rayCount,
+            const vector<Sphere> &spheres, vector<int> &sphereIndices, const int sphereOffset, const int sphereCount,
+            vector<Hit> &hits) {
     std::cout << "Dacrt with offsets " << rayCount << " x " << sphereCount << std::endl;
 
-    if (rayOffset * sphereOffset < 64) { // Magic number
+    if (rayCount * sphereCount < 64) { // Magic number
         // Perform exhaustive ray tracing
 
     } else {
@@ -188,50 +240,118 @@ float Dacrt(const HyperCube& cube, const Axis splitAxis,
 
 bool CompareRayAxis (HyperRay lhs, HyperRay rhs) { return (lhs.axis < rhs.axis);}
 
+struct PartitionSpheresByCone {
+    const vector<Sphere> spheres;
+    const Cone cone;
+    PartitionSpheresByCone(const vector<Sphere> spheres, const Cone cone)
+        : spheres(spheres), cone(cone) {}
+    
+    bool operator()(int i) { return cone.DoesIntersect(spheres[i]); }
+};
+
 int main(int argc, char *argv[]){
     sqrtSamples = argc == 2 ? atoi(argv[1]) : 1; // # samples
     samples = sqrtSamples * sqrtSamples;
 
     vector<Ray> rays = CreateRays();
     vector<HyperRay> hyperRays = vector<HyperRay>(rays.size());
-    for (int r = 0; r < rays.size(); ++r) {
+    for (int r = 0; r < hyperRays.size(); ++r)
         hyperRays[r] = HyperRay(rays[r]);
-        // std::cout << "HyperRay[" << r << "] " << hyperRays[r].ToString() << std::endl;
-    }
+    vector<Hit> hits(hyperRays.size());
 
     vector<Sphere> spheres = CreateSpheres();
     AABB B = CalcAABB(spheres.begin(), spheres.end());
-    std::cout << "World bounds: " << B.ToString() << std::endl;
 
-    // Sort rays according to axis.
-    std::sort(hyperRays.begin(), hyperRays.end(), CompareRayAxis);
-    
+    Color* colors = new Color[WIDTH * HEIGHT * samples];
+    vector<Color*> rayColors(WIDTH * HEIGHT * samples);
+    for (int c = 0; c < WIDTH * HEIGHT * samples; ++c)
+        rayColors[c] = colors + c;
+
     // For each hypercube
-    vector<HyperRay>::iterator rayBegin = hyperRays.begin();
     for (int a = 0; a < 6; ++a) {
-    
-        // Sort geometry according to hypercube
-        int offset = 0;
-        while (rayBegin[offset].axis == a)
-            ++offset;
-        
-        std::cout << "Offset is " << offset << " for axis " << a << std::endl;
-        if (offset == 0)
-            continue;
 
-        HyperCube hc((SignedAxis)a, rayBegin, offset);
+        /*    
+        // Sort rays to a hypercube
+        int rayCount = 0;
+        while (rayBegin[rayCount].axis == a)
+            ++rayCount;
+        
+        std::cout << "Ray count is " << rayCount << " for axis " << a << std::endl;
+        if (rayCount == 0) continue;
+
+        HyperCube hc((SignedAxis)a, rayBegin, rayCount);
         std::cout << "HyberCube " << hc.ToString() << std::endl;
 
+        vector<int> rayIndices(rayCount);
+        for (int i = 0; i < rayCount; ++i)
+            rayIndices[i] = i;
+        */
+
+        int rayOffset = 0;
+        vector<int> rayIndices = vector<int>();
+        for (int r = 0; r < hyperRays.size(); ++r)
+            if (hyperRays[r].axis == a) 
+                rayIndices.push_back(r);
+        int rayCount = rayIndices.size();
+        std::cout << "Ray count is " << rayCount << " for axis " << a << std::endl;
+
+        if (rayCount == 0) continue;
+
+        HyperCube hc((SignedAxis)a, hyperRays, rayIndices.begin(), rayCount);
+        std::cout << "HyberCube " << hc.ToString() << std::endl;
+
+        // Partition spheres according to hypercube
+        vector<int> sphereIDs(spheres.size());
+        for (int i = 0; i < sphereIDs.size(); ++i)
+            sphereIDs[i] = i;
+        
+        vector<int>::iterator spherePivot = 
+            std::partition(sphereIDs.begin(), sphereIDs.end(),
+                           PartitionSpheresByCone(spheres, hc.ConeBounds()));
+        int sphereCount = spherePivot - sphereIDs.begin();
+        int sphereOffset = 0;
+
         // perform dacrt
-        // Dacrt(hc, U, rayBegin, offset, spheres.size());
+        std::cout << "Dacrt with counts " << rayCount << " x " << sphereCount << std::endl;
+        // Dacrt(hc, U, rayBegin, rayCount, spheres.size());
+        Exhaustive(hyperRays, rayIndices, rayOffset, rayCount,
+                   spheres, sphereIDs, sphereOffset, sphereCount,
+                   hits);
+
+        // for (int h = 0; h < hits.size(); ++h)
+        //     if (hits[h].sphereID != -1)
+        //         std::cout << hits[h].t << " x " << spheres[hits[h].sphereID].ToString() << std::endl;
+        //     else
+        //         std::cout << hits[h].t << " x NULL" << std::endl;
         
         // Apply shading
+        Shade(hyperRays, rayColors, spheres, hits);
         
         // Iterator to beginning of next ray bundle.
-        rayBegin += offset;
     }
 
-    // Rinse 'n repeat
+    // TODO Rinse 'n repeat
+
+
+    // *********** CREATE IMAGE ****************
+
+    // Combine colors into image
+    Color* cs = new Color[WIDTH * HEIGHT];
+    for (int x = 0; x < WIDTH; ++x)
+        for (int y = 0; y < HEIGHT; ++y) {
+            Color c = Color(0,0,0);
+            for (int s = 0; s < samples; ++s)
+                c += colors[Index(x,y,s)] / samples;
+            cs[x + y * WIDTH] = c;
+        }
+
+    // Write image to PPM file.
+    FILE *f = fopen("image.ppm", "w");
+    fprintf(f, "P3\n%d %d\n%d\n", WIDTH, HEIGHT, 255);
+    for (int i = 0; i<WIDTH*HEIGHT; i++)
+        fprintf(f,"%d %d %d ", ToByte(cs[i].x), 
+                ToByte(cs[i].y), ToByte(cs[i].z));
+
     
     return 0;
 }

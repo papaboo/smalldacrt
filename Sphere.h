@@ -26,9 +26,9 @@ struct Sphere {
         return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0);
     }
 
-    inline std::string ToString() {
+    inline std::string ToString() const {
         std::ostringstream out;
-        out << "[radius: " << radius << ", position: " << position.ToString() + "]";
+        out << "[radius: " << radius << ", position: " << position.ToString() << ", color: " << color.ToString() << "]";
         return out.str();
     }
 };

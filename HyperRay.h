@@ -34,6 +34,11 @@ struct HyperRay { // For lack of a better name
         }
     }
 
+    inline Ray ToRay() const {
+        return Ray(Vector3(point.x, point.y, point.z), 
+                   Direction().Normalize());
+    }
+
     inline Vector3 Direction() const {
         switch(axis) {
         case posX:
