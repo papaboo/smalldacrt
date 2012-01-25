@@ -280,19 +280,9 @@ int main(int argc, char *argv[]){
     for (int a = 0; a < 6; ++a) {
         
         int rayIndex = rayOffset;
-        while(hyperRays[rayIndices[rayIndex]].axis == a && rayIndex < rayIndices.size())
+        while(rayIndex < rayIndices.size() && hyperRays[rayIndices[rayIndex]].axis == a)
             ++rayIndex;
         int rayCount = rayIndex - rayCount;
-        
-        /*
-        int rayOffset = 0;
-        vector<int> rayIndices = vector<int>();
-        for (int r = 0; r < hyperRays.size(); ++r)
-            if (hyperRays[r].axis == a) 
-                rayIndices.push_back(r);
-        int rayCount = rayIndices.size();
-        */
-        std::cout << "Ray count is " << rayCount << " for axis " << a << std::endl;
 
         if (rayCount == 0) continue;
 
