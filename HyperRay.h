@@ -2,6 +2,7 @@
 #define _SMALL_HYPER_RAY_H_
 
 #include "Ray.h"
+#include "Sphere.h"
 
 enum SignedAxis {posX = 0, negX = 1, posY = 2, negY = 3, posZ = 4, negZ = 5};
 
@@ -11,7 +12,7 @@ struct HyperRay { // For lack of a better name
 
     HyperRay() : point(Vector5(0,0,0,0,0)), axis(posX) {}
 
-    HyperRay(const Vector5& p, SignedAxis a) : point(p), axis(a) {}
+    HyperRay(const Vector5& p, const SignedAxis a) : point(p), axis(a) {}
 
     HyperRay(const Ray& charles) {
         point.x = charles.origin.x;
@@ -32,6 +33,16 @@ struct HyperRay { // For lack of a better name
             point.v = charles.dir.y / absDir.z;
             axis = charles.dir.z > 0.0f ? posZ : negZ;
         }
+    }
+
+    inline float Intersect(const Sphere& s) const {
+        const float eps = 1e-4;
+        const Vector3 dir = s.position - Vector3(point.x, point.y, point.z);
+        const float b = Dot(dir, Direction().Normalize());
+        float det = b*b - Dot(dir, dir) + s.radius*s.radius;
+        if (det < 0) return 0; else det = sqrt(det);
+        float t;
+        return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0);
     }
 
     inline Ray ToRay() const {

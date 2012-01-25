@@ -21,8 +21,8 @@ using std::vector;
 
 #include "Vector.h"
 #include "Ray.h"
-#include "HyperRay.h"
 #include "Sphere.h"
+#include "HyperRay.h"
 #include "AABB.h"
 #include "AABPenteract.h"
 #include "Cone.h"
@@ -102,8 +102,8 @@ struct Hit {
 };
 
 // const int WIDTH = 640, HEIGHT = 480;
-//const int WIDTH = 8, HEIGHT = 6;
-const int WIDTH = 160, HEIGHT = 120;
+const int WIDTH = 8, HEIGHT = 6;
+//const int WIDTH = 160, HEIGHT = 120;
 int sqrtSamples;
 int samples;
 
@@ -187,7 +187,6 @@ void Shade(const vector<HyperRay> rays, const vector<Color*> colors,
         }
         
         *colors[i] = spheres[hits[i].sphereID].color;
-        // std::cout << i << ": " << colors[i]->ToString() << std::endl;
     }
 }
 
@@ -200,16 +199,12 @@ void Exhaustive(const vector<HyperRay> &rays, vector<int> &rayIndices, const int
     for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
         int rayID = rayIndices[i];
         const Ray charles = rays[rayID].ToRay();
-        std::cout << rayID << ": " << charles.ToString() << std::endl;
-        // std::cout << "rayID: " << rayID << " = " << charles.ToString() << std::endl;
         for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
-            //std::cout << "  sphere: " << s << std::endl;
             const Sphere& sphere = spheres[sphereIDs[s]];
             float t = sphere.Intersect(charles);
             if (0 < t && t < hits[rayID].t)
                 hits[rayID] = Hit(t, s);
         }
-        // std::cout << "ray " << rayID << " hit sphere " << hits[rayID].sphereID << " with color " << spheres[sphereIDs[hits[rayID].sphereID]].color.ToString() << std::endl;
     }
 };
 
@@ -219,7 +214,7 @@ float Dacrt(const HyperCube& cube, const Axis splitAxis, const float farDistance
             vector<Hit> &hits) {
     std::cout << "Dacrt with offsets " << rayCount << " x " << sphereCount << std::endl;
 
-    if (rayCount * sphereCount < 64) { // Magic number
+    if (sphereCount / rayCount < 16) { // Magic number
         // Perform exhaustive ray tracing
 
     } else {
@@ -240,12 +235,17 @@ float Dacrt(const HyperCube& cube, const Axis splitAxis, const float farDistance
 
 bool CompareRayAxis (HyperRay lhs, HyperRay rhs) { return (lhs.axis < rhs.axis);}
 
+struct SortRayIndicesByAxis {
+    const vector<HyperRay>& rays;
+    SortRayIndicesByAxis(const vector<HyperRay>& rs) : rays(rs) {}
+    bool operator()(int i, int j) { return rays[i].axis < rays[j].axis; }
+};
+
 struct PartitionSpheresByCone {
-    const vector<Sphere> spheres;
+    const vector<Sphere>& spheres;
     const Cone cone;
-    PartitionSpheresByCone(const vector<Sphere> spheres, const Cone cone)
+    PartitionSpheresByCone(const vector<Sphere>& spheres, const Cone cone)
         : spheres(spheres), cone(cone) {}
-    
     bool operator()(int i) { return cone.DoesIntersect(spheres[i]); }
 };
 
@@ -254,6 +254,7 @@ int main(int argc, char *argv[]){
     samples = sqrtSamples * sqrtSamples;
 
     vector<Ray> rays = CreateRays();
+    std::cout << "Primary ray count: " << rays.size() << std::endl;
     vector<HyperRay> hyperRays = vector<HyperRay>(rays.size());
     for (int r = 0; r < hyperRays.size(); ++r)
         hyperRays[r] = HyperRay(rays[r]);
@@ -267,38 +268,36 @@ int main(int argc, char *argv[]){
     for (int c = 0; c < WIDTH * HEIGHT * samples; ++c)
         rayColors[c] = colors + c;
 
+    // Create indices and sort them. New indices will be created along with the
+    // shading.
+    vector<int> rayIndices = vector<int>(hyperRays.size());
+    for(int i = 0; i < rayIndices.size(); ++i)
+        rayIndices[i] = i;
+    std::sort(rayIndices.begin(), rayIndices.end(), SortRayIndicesByAxis(hyperRays));
+
     // For each hypercube
+    int rayOffset = 0;
     for (int a = 0; a < 6; ++a) {
-
-        /*    
-        // Sort rays to a hypercube
-        int rayCount = 0;
-        while (rayBegin[rayCount].axis == a)
-            ++rayCount;
         
-        std::cout << "Ray count is " << rayCount << " for axis " << a << std::endl;
-        if (rayCount == 0) continue;
-
-        HyperCube hc((SignedAxis)a, rayBegin, rayCount);
-        std::cout << "HyberCube " << hc.ToString() << std::endl;
-
-        vector<int> rayIndices(rayCount);
-        for (int i = 0; i < rayCount; ++i)
-            rayIndices[i] = i;
-        */
-
+        int rayIndex = rayOffset;
+        while(hyperRays[rayIndices[rayIndex]].axis == a && rayIndex < rayIndices.size())
+            ++rayIndex;
+        int rayCount = rayIndex - rayCount;
+        
+        /*
         int rayOffset = 0;
         vector<int> rayIndices = vector<int>();
         for (int r = 0; r < hyperRays.size(); ++r)
             if (hyperRays[r].axis == a) 
                 rayIndices.push_back(r);
         int rayCount = rayIndices.size();
+        */
         std::cout << "Ray count is " << rayCount << " for axis " << a << std::endl;
 
         if (rayCount == 0) continue;
 
         HyperCube hc((SignedAxis)a, hyperRays, rayIndices.begin(), rayCount);
-        std::cout << "HyberCube " << hc.ToString() << std::endl;
+        // std::cout << "HyberCube " << hc.ToString() << std::endl;
 
         // Partition spheres according to hypercube
         vector<int> sphereIDs(spheres.size());
@@ -317,17 +316,12 @@ int main(int argc, char *argv[]){
         Exhaustive(hyperRays, rayIndices, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount,
                    hits);
-
-        // for (int h = 0; h < hits.size(); ++h)
-        //     if (hits[h].sphereID != -1)
-        //         std::cout << hits[h].t << " x " << spheres[hits[h].sphereID].ToString() << std::endl;
-        //     else
-        //         std::cout << hits[h].t << " x NULL" << std::endl;
         
         // Apply shading
         Shade(hyperRays, rayColors, spheres, hits);
         
         // Iterator to beginning of next ray bundle.
+        rayOffset += rayCount;
     }
 
     // TODO Rinse 'n repeat
@@ -352,6 +346,5 @@ int main(int argc, char *argv[]){
         fprintf(f,"%d %d %d ", ToByte(cs[i].x), 
                 ToByte(cs[i].y), ToByte(cs[i].z));
 
-    
     return 0;
 }
