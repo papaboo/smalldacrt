@@ -56,6 +56,12 @@ struct Cone {
         return Dot((ray.origin - apex).Normalize(), ray.dir) > spreadAngle;
     }
 
+    inline std::string ToString() const {
+        std::ostringstream out;
+        out << "[apex: " << apex.ToString() << ", angle: " << spreadAngle << ", direction: " << dir.ToString() << "]";
+        return out.str();
+    }
+
 };
 
 inline Cone Union(const Cone& lhs, const Cone& rhs) {
