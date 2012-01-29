@@ -223,11 +223,11 @@ inline void Exhaustive(const vector<HyperRay> &rays, vector<int> &rayIndices, co
                 vector<Hit> &hits) {
     
     for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
-        int rayID = rayIndices[i];
+        const int rayID = rayIndices[i];
         const Ray charles = rays[rayID].ToRay();
         for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
             const Sphere sphere = spheres[sphereIDs[s]];
-            float t = sphere.Intersect(charles);
+            const float t = sphere.Intersect(charles);
             if (0 < t && t < hits[i].t)
                 hits[i] = Hit(t, s);
         }
@@ -336,7 +336,7 @@ int main(int argc, char *argv[]){
                        spheres, sphereIDs, sphereOffset, sphereCount,
                        hits);
             
-            // Iterator to beginning of next ray bundle.
+            // Offset to beginning of next ray bundle.
             rayOffset += rayCount;
         }
 
