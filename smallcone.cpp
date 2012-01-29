@@ -104,8 +104,8 @@ struct Hit {
 };
 
 // const int WIDTH = 640, HEIGHT = 480;
-const int WIDTH = 8, HEIGHT = 6;
-//const int WIDTH = 80, HEIGHT = 60;
+//const int WIDTH = 8, HEIGHT = 6;
+const int WIDTH = 80, HEIGHT = 60;
 int sqrtSamples;
 int samples;
 
@@ -189,7 +189,11 @@ vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
     for (int i = 0; i < rayIndices.size(); ++i) {
         int rayID = rayIndices[i];
         int sphereID = hits[i].sphereID;
-        if (sphereID == -1) continue;
+
+        if (sphereID == -1) {
+            std::cout << "Ray " << rayID << " missed" << std::endl;
+            continue;
+        }
 
         const Ray ray = rays[rayID].ToRay();
         const Sphere sphere = spheres[sphereID];
@@ -239,7 +243,7 @@ void Dacrt(const HyperCube& cube, const Axis splitAxis, const float farDistance,
             const vector<HyperRay> &rays, vector<int> &rayIndices, const int indexOffset, const int rayCount,
             const vector<Sphere> &spheres, vector<int> &sphereIndices, const int sphereOffset, const int sphereCount,
             vector<Hit> &hits) {
-    std::cout << "Dacrt with offsets " << rayCount << " x " << sphereCount << std::endl;
+    std::cout << "Dacrt with counts: " << rayCount << " x " << sphereCount << std::endl;
 
     if (sphereCount / rayCount < 16) { // Magic number
         // Perform exhaustive ray tracing
@@ -341,19 +345,19 @@ int main(int argc, char *argv[]){
                        spheres, sphereIDs, sphereOffset, sphereCount,
                        hits);
             
-            // Apply shading
-            vector<int> newIndices = Shade(hyperRays, rayIndices, rayColors, spheres, hits);
-            nextRayIndices.insert(nextRayIndices.end(), newIndices.begin(), newIndices.end());
-        
             // Iterator to beginning of next ray bundle.
             rayOffset += rayCount;
         }
 
-        std::cout << "New indices: ";
-        for (vector<int>::iterator itr = nextRayIndices.begin();
-             itr != nextRayIndices.end(); ++itr)
-            std::cout << *itr << ", ";
-        std::cout << std::endl;
+        // Apply shading
+        vector<int> newIndices = Shade(hyperRays, rayIndices, rayColors, spheres, hits);
+        nextRayIndices.insert(nextRayIndices.end(), newIndices.begin(), newIndices.end());
+        
+        // std::cout << "New indices: ";
+        // for (vector<int>::iterator itr = nextRayIndices.begin();
+        //      itr != nextRayIndices.end(); ++itr)
+        //     std::cout << *itr << ", ";
+        // std::cout << std::endl;
 
         rayIndices = nextRayIndices;
     }
