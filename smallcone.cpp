@@ -101,6 +101,13 @@ struct Hit {
         : t(t), sphereID(s) {}
 };
 
+struct Fragment {
+    Vector3 emission;
+    int depth;
+    Vector3 f; // What is this I wonder
+    Fragment() : emission(Vector3(0,0,0)), depth(0), f(Vector3(1,1,1)) {}
+};
+
 const int WIDTH = 640, HEIGHT = 480;
 //const int WIDTH = 8, HEIGHT = 6;
 //const int WIDTH = 80, HEIGHT = 60;
@@ -136,7 +143,7 @@ std::vector<HyperRay> CreateRays() {
                     Vector3 rayDir = cx * (((subX + 0.5 + dx) / sqrtSamples + x) / WIDTH - 0.5) 
                         + cy * (((subY + 0.5 + dy) / sqrtSamples + y) / HEIGHT - 0.5) + cam.dir;
                     // TODO create hyperrays directly
-                    const Ray charles = Ray(cam.origin + rayDir * 140, rayDir.Normalize());
+                    const Ray charles = Ray(cam.origin + rayDir * 130, rayDir.Normalize());
                     rays[Index(x,y,subX,subY)] = HyperRay(charles);
                 }
         }
@@ -181,7 +188,7 @@ AABB CalcAABB(vector<Sphere>::const_iterator begin,
 }
 
 vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
-                  const vector<Color*>& colors, 
+                  const vector<Fragment*>& frags, 
                   const vector<Sphere>& spheres, const vector<Hit>& hits) {
     vector<int> nextIndices;
     
@@ -209,7 +216,7 @@ vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
             break;
         }
         default:
-            *colors[rayID] += sphere.color;
+            frags[rayID]->emission += sphere.color;
         }
     }
     
@@ -282,10 +289,10 @@ int main(int argc, char *argv[]){
     vector<Sphere> spheres = CreateSpheres();
     AABB B = CalcAABB(spheres.begin(), spheres.end());
 
-    Color* colors = new Color[WIDTH * HEIGHT * samples];
-    vector<Color*> rayColors(WIDTH * HEIGHT * samples);
-    for (int c = 0; c < WIDTH * HEIGHT * samples; ++c)
-        rayColors[c] = colors + c;
+    Fragment* frags = new Fragment[WIDTH * HEIGHT * samples];
+    vector<Fragment*> rayFrags(WIDTH * HEIGHT * samples);
+    for (int f = 0; f < WIDTH * HEIGHT * samples; ++f)
+        rayFrags[f] = frags + f;
 
     // Create indices and sort them. New indices will be created along with the
     // shading.
@@ -341,7 +348,7 @@ int main(int argc, char *argv[]){
         }
 
         // Apply shading
-        vector<int> newIndices = Shade(rays, rayIndices, rayColors, spheres, hits);
+        vector<int> newIndices = Shade(rays, rayIndices, rayFrags, spheres, hits);
         nextRayIndices.insert(nextRayIndices.end(), newIndices.begin(), newIndices.end());
         
         rayIndices = nextRayIndices;
@@ -355,7 +362,7 @@ int main(int argc, char *argv[]){
         for (int y = 0; y < HEIGHT; ++y) {
             Color c = Color(0,0,0);
             for (int s = 0; s < samples; ++s)
-                c += colors[Index(x,y,s)] / samples;
+                c += frags[Index(x,y,s)].emission / samples;
             cs[x + y * WIDTH] = c;
         }
 
