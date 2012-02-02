@@ -201,23 +201,44 @@ vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
         const Ray ray = rays[rayID].ToRay();
         const Sphere sphere = spheres[sphereID];
         const Vector3 hitPos = ray.origin + ray.dir * hits[i].t;
-        Vector3 norm = (hitPos - sphere.position).Normalize();
-        Vector3 nl = Dot(norm, ray.dir) < 0 ? norm : norm * -1;
-
+        const Vector3 norm = (hitPos - sphere.position).Normalize();
+        const Vector3 nl = Dot(norm, ray.dir) < 0 ? norm : norm * -1;
+        Color f = sphere.color;
+        const float maxRefl = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z;
+        if (++(frags[rayID]->depth) > 5)
+            //if (erand48(Xi) < maxRefl) {
+            if (Rand01() < maxRefl) {
+                f = f * (1 / maxRefl); 
+            } else {
+                frags[rayID]->emission += frags[rayID]->f * sphere.emission;
+                continue;
+            }
+                
+        
+        Vector3 newRayDir;
         switch(sphere.reflection) {
         case SPECULAR: {
-            Vector3 reflect = ray.dir - nl * 2 * Dot(nl, ray.dir);
-
-            //std::cout << "    old ray: " << rays[rayID].ToRay().ToString() << std::endl;
-            rays[rayID] = HyperRay(Ray(hitPos + reflect * 0.1f, reflect));
-            //std::cout << "    new ray: " << rays[rayID].ToRay().ToString() << std::endl;
-
-            nextIndices.push_back(rayID);
+            newRayDir = ray.dir - nl * 2 * Dot(nl, ray.dir);
             break;
         }
+        case DIFFUSE: 
         default:
-            frags[rayID]->emission += sphere.color;
+            float r1 = 2 * M_PI * Rand01();
+            float r2 = Rand01(); 
+            float r2s = sqrtf(r2);
+            // Tangent space ?
+            Vector3 w = nl; 
+            Vector3 u = ((fabsf(w.x) > 0.1 ? Vector3(0,1,0) : Vector3(1,0,0)).Cross(w)).Normalize();
+            Vector3 v = w.Cross(u);
+            Vector3 newRayDir = (u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrtf(1-r2)).Normalize();
+            break;
         }
+
+        rays[rayID] = HyperRay(Ray(hitPos + newRayDir * 0.1f, newRayDir));
+        frags[rayID]->emission += frags[rayID]->f * sphere.emission;
+        frags[rayID]->f = frags[rayID]->f * f;
+        nextIndices.push_back(rayID);
+
     }
     
     return nextIndices;
@@ -306,7 +327,6 @@ int main(int argc, char *argv[]){
 
         std::sort(rayIndices.begin(), rayIndices.end(), SortRayIndicesByAxis(rays));
 
-        // TODO move outside loop
         vector<int> nextRayIndices = vector<int>();
         vector<Hit> hits(rayIndices.size());
         
