@@ -108,9 +108,9 @@ struct Fragment {
     Fragment() : emission(Vector3(0,0,0)), depth(0), f(Vector3(1,1,1)) {}
 };
 
-const int WIDTH = 640, HEIGHT = 480;
-//const int WIDTH = 8, HEIGHT = 6;
-//const int WIDTH = 80, HEIGHT = 60;
+//const int WIDTH = 640, HEIGHT = 480;
+//const int WIDTH = 4, HEIGHT = 3;
+const int WIDTH = 320, HEIGHT = 240;
 int sqrtSamples;
 int samples;
 
@@ -162,7 +162,7 @@ std::vector<Sphere> CreateSpheres() {
     spheres[4] = Sphere(1e5, Vector3(50, 1e5, 81.6),     Vector3(),Vector3(.75,.75,.75),DIFFUSE); // Bottom
     spheres[5] = Sphere(1e5, Vector3(50,-1e5+81.6,81.6), Vector3(),Vector3(.75,.75,.75),DIFFUSE) ;// Top
     spheres[6] = Sphere(600, Vector3(50,681.6-.27,81.6), Vector3(12,12,12),  Vector3(), DIFFUSE); // Light
-    spheres[7] = Sphere(16.5,Vector3(73,16.5,78),        Vector3(),Vector3(1,1,1)*.999, REFRACTING); // Glas
+    spheres[7] = Sphere(16.5,Vector3(73,16.5,78),        Vector3(0,0,2),Vector3(1,1,1)*.999, REFRACTING); // Glas
     spheres[8] = Sphere(16.5,Vector3(27,16.5,47),        Vector3(),Vector3(1,1,1)*.999, SPECULAR) ;// Mirror
 
     for (int s = 9; s < SPHERES; ++s) {
@@ -187,6 +187,7 @@ AABB CalcAABB(vector<Sphere>::const_iterator begin,
     return res;
 }
 
+// TODO use erand48(Xi) instead of Rand01
 vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
                   const vector<Fragment*>& frags, 
                   const vector<Sphere>& spheres, const vector<Hit>& hits) {
@@ -196,7 +197,10 @@ vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
         int rayID = rayIndices[i];
         int sphereID = hits[i].sphereID;
 
-        if (sphereID == -1) continue;
+        if (sphereID == -1) {
+            // std::cout << "ray: " << rays[rayID].ToRay().ToString() << " completely missed" << std::endl;
+            continue;
+        }
 
         const Ray ray = rays[rayID].ToRay();
         const Sphere sphere = spheres[sphereID];
@@ -206,14 +210,12 @@ vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
         Color f = sphere.color;
         const float maxRefl = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z;
         if (++(frags[rayID]->depth) > 5)
-            //if (erand48(Xi) < maxRefl) {
             if (Rand01() < maxRefl) {
                 f = f * (1 / maxRefl); 
             } else {
                 frags[rayID]->emission += frags[rayID]->f * sphere.emission;
                 continue;
             }
-                
         
         Vector3 newRayDir;
         switch(sphere.reflection) {
@@ -230,7 +232,7 @@ vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
             Vector3 w = nl; 
             Vector3 u = ((fabsf(w.x) > 0.1 ? Vector3(0,1,0) : Vector3(1,0,0)).Cross(w)).Normalize();
             Vector3 v = w.Cross(u);
-            Vector3 newRayDir = (u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrtf(1-r2)).Normalize();
+            newRayDir = (u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrtf(1-r2)).Normalize();
             break;
         }
 
@@ -238,7 +240,6 @@ vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
         frags[rayID]->emission += frags[rayID]->f * sphere.emission;
         frags[rayID]->f = frags[rayID]->f * f;
         nextIndices.push_back(rayID);
-
     }
     
     return nextIndices;
@@ -329,7 +330,7 @@ int main(int argc, char *argv[]){
 
         vector<int> nextRayIndices = vector<int>();
         vector<Hit> hits(rayIndices.size());
-        
+
         // For each hypercube
         int rayOffset = 0;
         for (int a = 0; a < 6; ++a) {
