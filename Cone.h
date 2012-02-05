@@ -12,21 +12,19 @@ struct Cone {
     Vector3 apex;
     float spreadAngle;
     Vector3 dir;
-    float t;
 
     /**
      * Construct a cone from it's apex, direction and spreadangle. The direction
      * is assumed to be normalized.
      */
     Cone(const Vector3& apex, const Vector3& dir, const float spreadAngle)
-        : apex(apex), dir(dir), spreadAngle(spreadAngle), t(0) {}
+        : apex(apex), dir(dir), spreadAngle(spreadAngle) {}
 
     /**
      * http://www.geometrictools.com/Documentation/IntersectionSphereCone.pdf
      */
     inline bool DoesIntersect(const Sphere& sphere) const {
         // @TODO Handle reflex cones by inversion
-        // @TODO Add t to the formula.
         
         Vector3 U = apex - dir * (sphere.radius / sin(spreadAngle));
         Vector3 D = sphere.position - U;
