@@ -109,8 +109,8 @@ struct Fragment {
 };
 
 //const int WIDTH = 640, HEIGHT = 480;
-//const int WIDTH = 4, HEIGHT = 3;
-const int WIDTH = 320, HEIGHT = 240;
+const int WIDTH = 16, HEIGHT = 12;
+//const int WIDTH = 320, HEIGHT = 240;
 int sqrtSamples;
 int samples;
 
@@ -153,7 +153,7 @@ std::vector<HyperRay> CreateRays() {
 }
 
 std::vector<Sphere> CreateSpheres() {
-    const int SPHERES = 9;
+    const int SPHERES = 29;
     std::vector<Sphere> spheres = std::vector<Sphere>(SPHERES);
     spheres[0] = Sphere(1e5, Vector3(1e5+1,40.8,81.6),   Vector3(),Vector3(.75,.25,.25),DIFFUSE); // Left
     spheres[1] = Sphere(1e5, Vector3(-1e5+99,40.8,81.6), Vector3(),Vector3(.25,.25,.75),DIFFUSE); // Right
@@ -169,25 +169,12 @@ std::vector<Sphere> CreateSpheres() {
         // Create weird random spheres
         Vector3 pos = Vector3(Rand01() * 100.0 , Rand01() * 100.0 , Rand01() * 100.0 + 50.0);
         Color c = Color(Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f);
-        spheres[s] = Sphere(1, pos, Vector3(),  c, DIFFUSE);
+        spheres[s] = Sphere(1, pos, c,  c, DIFFUSE);
     }
 
     return spheres;
 }
 
-AABB CalcAABB(vector<Sphere>::const_iterator begin, 
-              vector<Sphere>::const_iterator end) {
-    AABB res(*begin);
-    begin++;
-    while (begin != end) {
-        res.Extend(*begin);
-        begin++;
-    }
-
-    return res;
-}
-
-// TODO use erand48(Xi) instead of Rand01
 vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
                   const vector<Fragment*>& frags, 
                   const vector<Sphere>& spheres, const vector<Hit>& hits) {
@@ -263,14 +250,15 @@ inline void Exhaustive(const vector<HyperRay> &rays, vector<int> &rayIndices, co
     }
 };
 
-void Dacrt(const HyperCube& cube, const Axis splitAxis, const float farDistance,
-            const vector<HyperRay> &rays, vector<int> &rayIndices, const int indexOffset, const int rayCount,
-            const vector<Sphere> &spheres, vector<int> &sphereIndices, const int sphereOffset, const int sphereCount,
+void Dacrt(const HyperCube& cube, const Axis splitAxis, const float nearDistance, const float farDistance,
+            const vector<HyperRay> &rays, vector<int> &rayIDs, const int indexOffset, const int indexCount,
+            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
             vector<Hit> &hits) {
-    std::cout << "Dacrt with counts: " << rayCount << " x " << sphereCount << std::endl;
+    std::cout << "Dacrt with counts: " << indexCount << " x " << sphereCount << std::endl;
 
-    if (sphereCount / rayCount < 16) { // Magic number
-        // Perform exhaustive ray tracing
+    if (sphereCount / sphereCount < 16) { // Termination criteria
+        Exhaustive(rays, rayIDs, indexOffset, indexCount,
+                   spheres, sphereIDs, sphereOffset, sphereCount, hits);
 
     } else {
 
@@ -309,7 +297,6 @@ int main(int argc, char *argv[]){
     vector<HyperRay> rays = CreateRays();
 
     vector<Sphere> spheres = CreateSpheres();
-    AABB B = CalcAABB(spheres.begin(), spheres.end());
 
     Fragment* frags = new Fragment[WIDTH * HEIGHT * samples];
     vector<Fragment*> rayFrags(WIDTH * HEIGHT * samples);
@@ -356,6 +343,9 @@ int main(int argc, char *argv[]){
                                PartitionSpheresByCone(spheres, hc.ConeBounds()));
             int sphereCount = spherePivot - sphereIDs.begin();
             int sphereOffset = 0;
+
+            Sphere bound = CalcBoundingSphere(spheres, sphereIDs.begin(), sphereIDs.end());
+            std::cout << "  Bounding sphere " << bound.ToString() << std::endl;
             
             // perform dacrt
             std::cout << "  Dacrt with counts " << rayCount << " x " << sphereCount << std::endl;
