@@ -19,7 +19,7 @@ inline int ToByte(float v) {
 }
 
 AABB CalcAABB(vector<Sphere>::const_iterator begin, 
-              vector<Sphere>::const_iterator end) {
+              const vector<Sphere>::const_iterator end) {
     AABB res(*begin);
     begin++;
     while (begin != end) {
@@ -27,6 +27,17 @@ AABB CalcAABB(vector<Sphere>::const_iterator begin,
         begin++;
     }
     
+    return res;
+}
+
+AABB CalcAABB(const vector<Sphere> spheres, 
+              vector<int>::const_iterator begin, const vector<int>::const_iterator end) {
+    AABB res(spheres[*begin]);
+    begin++;
+    while (begin != end) {
+        res.Extend(spheres[*begin]);
+        begin++;
+    }
     return res;
 }
 
