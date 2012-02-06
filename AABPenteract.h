@@ -1,6 +1,8 @@
 #ifndef _SMALL_AAB_PENTERACT_H_
 #define _SMALL_AAB_PENTERACT_H_
 
+#include "HyperRay.h"
+
 struct Bound1D {
     float min, max;
 
@@ -9,11 +11,15 @@ struct Bound1D {
     Bound1D(const float min, const float max) 
         : min(min), max(max) {}
 
+    inline float Middle() const {
+        return (min + max) * 0.5f;
+    }
+
     inline std::string ToString() const {
         std::ostringstream out;
         out << "[min: " << min << ", max: " << max << "]";
         return out.str();
-    }    
+    }
 };
 
 struct AABPenteract {
@@ -37,6 +43,14 @@ struct AABPenteract {
         z.min = std::min(z.min, p.z); z.max = std::max(z.max, p.z);
         u.min = std::min(u.min, p.u); u.max = std::max(u.max, p.u);
         v.min = std::min(v.min, p.v); v.max = std::max(v.max, p.v);
+    }
+
+    inline bool Contains(const HyperRay& ray) const {
+        return x.min <= ray.point.x && ray.point.x <= x.max && 
+            y.min <= ray.point.y && ray.point.y <= y.max && 
+            z.min <= ray.point.z && ray.point.z <= z.max && 
+            u.min <= ray.point.u && ray.point.u <= u.max && 
+            v.min <= ray.point.v && ray.point.v <= v.max;
     }
 
     inline std::string ToString() const {
