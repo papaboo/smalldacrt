@@ -33,18 +33,18 @@ enum Axis {X = 0, Y = 1, Z = 2, U = 3, V = 4};
 struct HyperCube {
     AABPenteract cube;
     SignedAxis axis;
-    float t;
     
-    HyperCube() : cube(AABPenteract()), axis(negZ), t(0) {}
+    HyperCube() : cube(AABPenteract()), axis(negZ) {}
 
     HyperCube(const SignedAxis axis, vector<HyperRay>::iterator rayBegin, int rayOffset) 
-        : cube(AABPenteract(rayBegin[0].point)), axis(axis), t(0) {
+        : cube(AABPenteract(rayBegin[0].point)), axis(axis) {
         for (int r = 1; r < rayOffset; ++r)
             cube.Extent(rayBegin[r].point);
     }
 
-    HyperCube(const SignedAxis axis, const vector<HyperRay>& hyperRays, vector<int>::iterator rayIndexBegin, const int rayOffset) 
-        : axis(axis), t(0) {
+    HyperCube(const SignedAxis axis, const vector<HyperRay>& hyperRays, 
+              const vector<int>::iterator rayIndexBegin, const int rayOffset) 
+        : axis(axis) {
         cube = AABPenteract(hyperRays[*rayIndexBegin].point);
         for (int r = 1; r < rayOffset; ++r)
             cube.Extent(hyperRays[rayIndexBegin[r]].point);
@@ -76,7 +76,7 @@ struct HyperCube {
 
     inline std::string ToString() const {
         std::ostringstream out;
-        out << "[axis: " << axis << ", cube: " << cube.ToString() << ", t: " << t << "]";
+        out << "[axis: " << axis << ", cube: " << cube.ToString() << "]";
         return out.str();
     }
 
@@ -109,8 +109,8 @@ struct Fragment {
 };
 
 //const int WIDTH = 640, HEIGHT = 480;
-const int WIDTH = 16, HEIGHT = 12;
-//const int WIDTH = 320, HEIGHT = 240;
+//const int WIDTH = 16, HEIGHT = 12;
+const int WIDTH = 320, HEIGHT = 240;
 int sqrtSamples;
 int samples;
 
@@ -175,10 +175,42 @@ std::vector<Sphere> CreateSpheres() {
     return spheres;
 }
 
-vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
-                  const vector<Fragment*>& frags, 
-                  const vector<Sphere>& spheres, const vector<Hit>& hits) {
-    vector<int> nextIndices;
+void SimpleShade(vector<HyperRay>& rays, const vector<int>& rayIndices,
+                 const vector<Fragment*>& frags, 
+                 const vector<Sphere>& spheres, const vector<Hit>& hits,
+                 vector<int>& nextIndices, int &nextOffset) {
+    
+    for (int i = 0; i < rayIndices.size(); ++i) {
+        int rayID = rayIndices[i];
+        int sphereID = hits[i].sphereID;
+
+        if (sphereID == -1) continue;
+
+        const Ray ray = rays[rayID].ToRay();
+        const Sphere sphere = spheres[sphereID];
+        const Vector3 hitPos = ray.origin + ray.dir * hits[i].t;
+        const Vector3 norm = (hitPos - sphere.position).Normalize();
+        const Vector3 nl = Dot(norm, ray.dir) < 0 ? norm : norm * -1;
+
+        switch(sphere.reflection) {
+        case SPECULAR: {
+            Vector3 reflect = ray.dir - nl * 2 * Dot(nl, ray.dir);
+            rays[rayID] = HyperRay(Ray(hitPos + reflect * 0.1f, reflect));
+            nextIndices[nextOffset++] = rayID;
+            break;
+        }
+        default:
+            float mod = 0.5f + 0.5f * nl.y;
+            frags[rayID]->emission = sphere.color * mod;
+            break;
+        }            
+    }
+}
+
+void Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
+           const vector<Fragment*>& frags, 
+           const vector<Sphere>& spheres, const vector<Hit>& hits,
+           vector<int>& nextIndices, int &nextOffset) {
     
     for (int i = 0; i < rayIndices.size(); ++i) {
         int rayID = rayIndices[i];
@@ -226,10 +258,8 @@ vector<int> Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
         rays[rayID] = HyperRay(Ray(hitPos + newRayDir * 0.1f, newRayDir));
         frags[rayID]->emission += frags[rayID]->f * sphere.emission;
         frags[rayID]->f = frags[rayID]->f * f;
-        nextIndices.push_back(rayID);
+        nextIndices[nextOffset++] = rayID;
     }
-    
-    return nextIndices;
 }
 
 // TODO replace sphere indices with sphere pointers, since we're only using that
@@ -250,26 +280,86 @@ inline void Exhaustive(const vector<HyperRay> &rays, vector<int> &rayIndices, co
     }
 };
 
-void Dacrt(const HyperCube& cube, const Axis splitAxis, const float nearDistance, const float farDistance,
-            const vector<HyperRay> &rays, vector<int> &rayIDs, const int indexOffset, const int indexCount,
-            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
-            vector<Hit> &hits) {
-    std::cout << "Dacrt with counts: " << indexCount << " x " << sphereCount << std::endl;
+struct PartitionRaysByU {
+    const vector<HyperRay>& rays;
+    const float value;
+    PartitionRaysByU(const vector<HyperRay>& r, const float v)
+        : rays(r), value(v) {}
+    bool operator()(int i) { return rays[i].point.u <= value; }
+};
+
+struct PartitionRaysByV {
+    const vector<HyperRay>& rays;
+    const float value;
+    PartitionRaysByV(const vector<HyperRay>& r, const float v)
+        : rays(r), value(v) {}
+    bool operator()(int i) { return rays[i].point.v <= value; }
+};
+
+struct PartitionSpheresByCone {
+    const vector<Sphere>& spheres;
+    const Cone cone;
+    PartitionSpheresByCone(const vector<Sphere>& spheres, const Cone cone)
+        : spheres(spheres), cone(cone) {}
+    bool operator()(int i) { return cone.DoesIntersect(spheres[i]); }
+};
+
+struct PartitionSpheresByDistance {
+    const vector<Sphere>& spheres;
+    const Vector3 apex;
+    const float distance;
+    PartitionSpheresByDistance(const vector<Sphere>& s, const Vector3& a, const float d)
+        : spheres(s), apex(a), distance(d) {}
+    bool operator()(int i) { return (apex - spheres[i].position).Length() + spheres[i].radius > distance; }
+};
+
+// TODO split dacrt into 2? Split rays and split spheres.
+
+void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float minDistance, const float maxDistance, 
+           const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
+           const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
+           vector<Hit> &hits) {
+    std::cout << "Dacrt with counts: " << rayCount << " x " << sphereCount << std::endl;
 
     if (sphereCount / sphereCount < 16) { // Termination criteria
-        Exhaustive(rays, rayIDs, indexOffset, indexCount,
+        Exhaustive(rays, rayIDs, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount, hits);
-
     } else {
+
+        // Split the hypercube along either u or v and partition the ray ids
+        vector<int>::iterator begin = rayIDs.begin() + rayOffset;
+        vector<int>::iterator rayPivot = level % 2 == 0 ?
+            std::partition(begin, begin + rayCount,
+                           PartitionRaysByU(rays, cube.cube.u.Middle())) :
+            std::partition(begin, begin + rayCount,
+                           PartitionRaysByV(rays, cube.cube.v.Middle()));
+        
+        HyperCube cube = HyperCube(cube.axis, rays, rayIDs.begin() + rayOffset, rayCount);
+        Cone c = cube.ConeBounds();
+
+        
 
         // Partition based on the distance from the apex and place far away
         // spheres first in the vector, so we don't accidentally overwrite them
         // while traversing.
+
+        /*
+        Cone lCone = lCube.ConeBounds();
+        float dApex = (cone.apex - lCone.apex).Length();
+        float partitionDist = (minDistance + maxDistance) * 0.5f - dApex;
         
-        // Divide the hypercube and partition the rays
+        vector<int>::iterator begin = sphereIDs.begin() + sphereOffset;
+        vector<int>::iterator spherePivot = 
+            std::partition(begin, begin + sphereCount,
+                           PartitionSpheresByDistance(spheres, lCone.apex, partitionDist));
+        */        
+
+
+
+
+        // Divide the hypercube along either u or v and partition the rays
         
         // First iterate over the near chunks, then the far ones.
-
     }
 }
 
@@ -280,14 +370,6 @@ struct SortRayIndicesByAxis {
     const vector<HyperRay>& rays;
     SortRayIndicesByAxis(const vector<HyperRay>& rs) : rays(rs) {}
     bool operator()(int i, int j) { return rays[i].axis < rays[j].axis; }
-};
-
-struct PartitionSpheresByCone {
-    const vector<Sphere>& spheres;
-    const Cone cone;
-    PartitionSpheresByCone(const vector<Sphere>& spheres, const Cone cone)
-        : spheres(spheres), cone(cone) {}
-    bool operator()(int i) { return cone.DoesIntersect(spheres[i]); }
 };
 
 int main(int argc, char *argv[]){
@@ -308,14 +390,15 @@ int main(int argc, char *argv[]){
     vector<int> rayIndices = vector<int>(rays.size());
     for(int i = 0; i < rayIndices.size(); ++i)
         rayIndices[i] = i;
-    
+
     while (rayIndices.size() > 0) {
 
         std::cout << "rays this pass: " << rayIndices.size() << std::endl;
 
         std::sort(rayIndices.begin(), rayIndices.end(), SortRayIndicesByAxis(rays));
 
-        vector<int> nextRayIndices = vector<int>();
+        vector<int> nextRayIndices(rayIndices.size());
+        int nextOffset = 0;
         vector<Hit> hits(rayIndices.size());
 
         // For each hypercube
@@ -344,8 +427,8 @@ int main(int argc, char *argv[]){
             int sphereCount = spherePivot - sphereIDs.begin();
             int sphereOffset = 0;
 
-            Sphere bound = CalcBoundingSphere(spheres, sphereIDs.begin(), sphereIDs.end());
-            std::cout << "  Bounding sphere " << bound.ToString() << std::endl;
+            AABB bounds = CalcAABB(spheres, sphereIDs.begin(), sphereIDs.end());
+            std::cout << "  Bounding box " << bounds.ToString() << std::endl;
             
             // perform dacrt
             std::cout << "  Dacrt with counts " << rayCount << " x " << sphereCount << std::endl;
@@ -359,8 +442,8 @@ int main(int argc, char *argv[]){
         }
 
         // Apply shading
-        vector<int> newIndices = Shade(rays, rayIndices, rayFrags, spheres, hits);
-        nextRayIndices.insert(nextRayIndices.end(), newIndices.begin(), newIndices.end());
+        SimpleShade(rays, rayIndices, rayFrags, spheres, hits, nextRayIndices, nextOffset);
+        nextRayIndices.resize(nextOffset);
         
         rayIndices = nextRayIndices;
     }
