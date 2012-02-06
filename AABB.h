@@ -21,6 +21,10 @@ struct AABB {
         max.z = std::max(max.z, s.position.z + s.radius);
     }
 
+    inline Vector3 Center() const {
+        return (min + max) * 0.5f;
+    }
+
     inline float Intersect(const Ray& ray) const {
         Vector3 minTs = (min - ray.origin) / ray.dir;
         Vector3 maxTs = (max - ray.origin) / ray.dir;
