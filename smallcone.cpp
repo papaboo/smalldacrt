@@ -244,7 +244,7 @@ void Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
         }
         case DIFFUSE: 
         default:
-            float r1 = 2 * M_PI * Rand01();
+            float r1 = 2 * PI * Rand01();
             float r2 = Rand01(); 
             float r2s = sqrtf(r2);
             // Tangent space ?
