@@ -153,7 +153,7 @@ std::vector<HyperRay> CreateRays() {
 }
 
 std::vector<Sphere> CreateSpheres() {
-    const int SPHERES = 29;
+    const int SPHERES = 429;
     std::vector<Sphere> spheres = std::vector<Sphere>(SPHERES);
     spheres[0] = Sphere(1e5, Vector3(1e5+1,40.8,81.6),   Vector3(),Vector3(.75,.25,.25),DIFFUSE); // Left
     spheres[1] = Sphere(1e5, Vector3(-1e5+99,40.8,81.6), Vector3(),Vector3(.25,.25,.75),DIFFUSE); // Right
@@ -167,9 +167,10 @@ std::vector<Sphere> CreateSpheres() {
 
     for (int s = 9; s < SPHERES; ++s) {
         // Create weird random spheres
+        float radius = 1.0f + Rand01();
         Vector3 pos = Vector3(Rand01() * 100.0 , Rand01() * 100.0 , Rand01() * 100.0 + 50.0);
         Color c = Color(Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f);
-        spheres[s] = Sphere(1, pos, c,  c, DIFFUSE);
+        spheres[s] = Sphere(radius, pos, c,  c, DIFFUSE);
     }
 
     return spheres;
@@ -264,9 +265,14 @@ void Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
 
 // TODO replace sphere indices with sphere pointers, since we're only using that
 // index for spheres.
-inline void Exhaustive(const vector<HyperRay> &rays, vector<int> &rayIndices, const int indexOffset, const int indexCount,
-                const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
-                vector<Hit> &hits) {
+inline void Exhaustive(const int level,
+                       const vector<HyperRay> &rays, vector<int> &rayIndices, const int indexOffset, const int indexCount,
+                       const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
+                       vector<Hit> &hits) {
+
+    for (int i = -1; i < level; ++i)
+        std::cout << "  ";
+    std::cout << "Exhaustive with counts: " << indexCount << " x " << sphereCount << std::endl;
     
     for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
         const int rayID = rayIndices[i];
@@ -304,25 +310,19 @@ struct PartitionSpheresByCone {
     bool operator()(int i) { return cone.DoesIntersect(spheres[i]); }
 };
 
-struct PartitionSpheresByDistance {
-    const vector<Sphere>& spheres;
-    const Vector3 apex;
-    const float distance;
-    PartitionSpheresByDistance(const vector<Sphere>& s, const Vector3& a, const float d)
-        : spheres(s), apex(a), distance(d) {}
-    bool operator()(int i) { return (apex - spheres[i].position).Length() + spheres[i].radius > distance; }
-};
-
 // TODO split dacrt into 2? Split rays and split spheres.
 
 void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float minDistance, const float maxDistance, 
            const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
            vector<Hit> &hits) {
+    for (int i = -1; i < level; ++i)
+        std::cout << "  ";
     std::cout << "Dacrt with counts: " << rayCount << " x " << sphereCount << std::endl;
 
-    if (sphereCount / sphereCount < 16) { // Termination criteria
-        Exhaustive(rays, rayIDs, rayOffset, rayCount,
+    //if (sphereCount / sphereCount < 16) { // Termination criteria
+    if (false) { // Termination criteria
+        Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount, hits);
     } else {
 
@@ -333,27 +333,47 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
                            PartitionRaysByU(rays, cube.cube.u.Middle())) :
             std::partition(begin, begin + rayCount,
                            PartitionRaysByV(rays, cube.cube.v.Middle()));
-        
-        HyperCube cube = HyperCube(cube.axis, rays, rayIDs.begin() + rayOffset, rayCount);
-        Cone c = cube.ConeBounds();
+        int newRayCount = rayPivot - begin;
 
-        
+        // Cube and cone for the lower side
+        HyperCube lCube = HyperCube(cube.axis, rays, begin, newRayCount);
+        Cone lCone = lCube.ConeBounds();
+
+        // Partition spheres according to cone
+        begin = sphereIDs.begin() + sphereOffset;
+        vector<int>::iterator spherePivot = 
+            std::partition(begin, begin + sphereCount, 
+                           PartitionSpheresByCone(spheres, lCone));
+        int newSphereCount = spherePivot - begin;
+
+        // Perform exhaustive
+        Exhaustive(level+1, rays, rayIDs, rayOffset, newRayCount,
+                   spheres, sphereIDs, sphereOffset, newSphereCount, 
+                   hits);
+
+        // Cube and cone for the upper side
+        int upperRayOffset = rayOffset + newRayCount;
+        int upperRayCount = rayCount - newRayCount;
+        HyperCube uCube = HyperCube(cube.axis, rays, rayIDs.begin() + upperRayOffset, upperRayCount);
+        Cone uCone = uCube.ConeBounds();
+
+        // Partition spheres according to cone
+        begin = sphereIDs.begin() + sphereOffset;
+        spherePivot = 
+            std::partition(begin, begin + sphereCount, 
+                           PartitionSpheresByCone(spheres, uCone));
+        newSphereCount = spherePivot - begin;
+
+        // Perform exhaustive        
+        Exhaustive(level+1, rays, rayIDs, upperRayOffset, upperRayCount,
+                   spheres, sphereIDs, sphereOffset, newSphereCount, 
+                   hits);
+
+
 
         // Partition based on the distance from the apex and place far away
         // spheres first in the vector, so we don't accidentally overwrite them
         // while traversing.
-
-        /*
-        Cone lCone = lCube.ConeBounds();
-        float dApex = (cone.apex - lCone.apex).Length();
-        float partitionDist = (minDistance + maxDistance) * 0.5f - dApex;
-        
-        vector<int>::iterator begin = sphereIDs.begin() + sphereOffset;
-        vector<int>::iterator spherePivot = 
-            std::partition(begin, begin + sphereCount,
-                           PartitionSpheresByDistance(spheres, lCone.apex, partitionDist));
-        */        
-
 
 
 
@@ -414,6 +434,7 @@ int main(int argc, char *argv[]){
             if (rayCount == 0) continue;
             
             HyperCube hc((SignedAxis)a, rays, rayIndices.begin(), rayCount);
+            const Cone cone = hc.ConeBounds();
             // std::cout << "HyberCube " << hc.ToString() << "\n   -> " << hc.ConeBounds().ToString() << std::endl;
             
             // Partition spheres according to hypercube
@@ -428,14 +449,16 @@ int main(int argc, char *argv[]){
             int sphereOffset = 0;
 
             AABB bounds = CalcAABB(spheres, sphereIDs.begin(), sphereIDs.end());
-            std::cout << "  Bounding box " << bounds.ToString() << std::endl;
+            //std::cout << "  Bounding box " << bounds.ToString() << std::endl;
             
             // perform dacrt
-            std::cout << "  Dacrt with counts " << rayCount << " x " << sphereCount << std::endl;
-            // Dacrt(hc, U, rayBegin, rayCount, spheres.size());
-            Exhaustive(rays, rayIndices, rayOffset, rayCount,
-                       spheres, sphereIDs, sphereOffset, sphereCount,
-                       hits);
+            Dacrt(hc, cone, 0, 0, 1e30, 
+                  rays, rayIndices, rayOffset, rayCount,
+                  spheres, sphereIDs, sphereOffset, sphereCount,
+                  hits);
+            // Exhaustive(rays, rayIndices, rayOffset, rayCount,
+            //            spheres, sphereIDs, sphereOffset, sphereCount,
+            //            hits);
             
             // Offset to beginning of next ray bundle.
             rayOffset += rayCount;
