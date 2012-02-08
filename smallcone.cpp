@@ -316,15 +316,15 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
            const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
            vector<Hit> &hits) {
-    for (int i = -1; i < level; ++i)
-        std::cout << "  ";
-    std::cout << "Dacrt with counts: " << rayCount << " x " << sphereCount << std::endl;
 
     if (rayCount / sphereCount < 64) { // Termination criteria
-    //if (false) { // Termination criteria
         Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount, hits);
     } else {
+
+        for (int i = -1; i < level; ++i)
+            std::cout << "  ";
+        std::cout << "Dacrt with counts: " << rayCount << " x " << sphereCount << std::endl;
 
         // Split the hypercube along either u or v and partition the ray ids
         vector<int>::iterator begin = rayIDs.begin() + rayOffset;
