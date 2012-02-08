@@ -320,8 +320,8 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
         std::cout << "  ";
     std::cout << "Dacrt with counts: " << rayCount << " x " << sphereCount << std::endl;
 
-    //if (sphereCount / sphereCount < 16) { // Termination criteria
-    if (false) { // Termination criteria
+    if (rayCount / sphereCount < 64) { // Termination criteria
+    //if (false) { // Termination criteria
         Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount, hits);
     } else {
@@ -336,38 +336,40 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
         int newRayCount = rayPivot - begin;
 
         // Cube and cone for the lower side
-        HyperCube lCube = HyperCube(cube.axis, rays, begin, newRayCount);
-        Cone lCone = lCube.ConeBounds();
+        HyperCube lowerCube = HyperCube(cube.axis, rays, begin, newRayCount);
+        Cone lowerCone = lowerCube.ConeBounds();
 
         // Partition spheres according to cone
         begin = sphereIDs.begin() + sphereOffset;
         vector<int>::iterator spherePivot = 
             std::partition(begin, begin + sphereCount, 
-                           PartitionSpheresByCone(spheres, lCone));
+                           PartitionSpheresByCone(spheres, lowerCone));
         int newSphereCount = spherePivot - begin;
 
         // Perform exhaustive
-        Exhaustive(level+1, rays, rayIDs, rayOffset, newRayCount,
-                   spheres, sphereIDs, sphereOffset, newSphereCount, 
-                   hits);
+        Dacrt(lowerCube, lowerCone, level+1, minDistance, maxDistance, 
+              rays, rayIDs, rayOffset, newRayCount,
+              spheres, sphereIDs, sphereOffset, newSphereCount, 
+              hits);
 
         // Cube and cone for the upper side
         int upperRayOffset = rayOffset + newRayCount;
         int upperRayCount = rayCount - newRayCount;
-        HyperCube uCube = HyperCube(cube.axis, rays, rayIDs.begin() + upperRayOffset, upperRayCount);
-        Cone uCone = uCube.ConeBounds();
+        HyperCube upperCube = HyperCube(cube.axis, rays, rayIDs.begin() + upperRayOffset, upperRayCount);
+        Cone upperCone = upperCube.ConeBounds();
 
         // Partition spheres according to cone
         begin = sphereIDs.begin() + sphereOffset;
         spherePivot = 
             std::partition(begin, begin + sphereCount, 
-                           PartitionSpheresByCone(spheres, uCone));
+                           PartitionSpheresByCone(spheres, upperCone));
         newSphereCount = spherePivot - begin;
 
         // Perform exhaustive        
-        Exhaustive(level+1, rays, rayIDs, upperRayOffset, upperRayCount,
-                   spheres, sphereIDs, sphereOffset, newSphereCount, 
-                   hits);
+        Dacrt(upperCube, upperCone, level+1, minDistance, maxDistance, 
+              rays, rayIDs, upperRayOffset, upperRayCount,
+              spheres, sphereIDs, sphereOffset, newSphereCount, 
+              hits);
 
 
 
