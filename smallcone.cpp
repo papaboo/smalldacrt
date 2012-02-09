@@ -109,8 +109,8 @@ struct Fragment {
 };
 
 //const int WIDTH = 640, HEIGHT = 480;
-//const int WIDTH = 16, HEIGHT = 12;
-const int WIDTH = 320, HEIGHT = 240;
+const int WIDTH = 16, HEIGHT = 12;
+//const int WIDTH = 320, HEIGHT = 240;
 int sqrtSamples;
 int samples;
 
@@ -312,12 +312,14 @@ struct PartitionSpheresByCone {
 
 // TODO split dacrt into 2? Split rays and split spheres.
 
-void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float minDistance, const float maxDistance, 
+void const(Dacrt HyperCube& cube, const Cone& cone, const int level, const float minDistance, const float maxDistance, 
            const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
            vector<Hit> &hits) {
 
-    if (rayCount / sphereCount < 64) { // Termination criteria
+    // The termination criteria expreses that once the exhaustive O(r * s)
+    // search is faster than performing another split we terminate recursion.
+    if (rayCount * sphereCount < 64 * (rayCount + sphereCount)) {
         Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount, hits);
     } else {
