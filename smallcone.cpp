@@ -109,8 +109,8 @@ struct Fragment {
 };
 
 //const int WIDTH = 640, HEIGHT = 480;
-const int WIDTH = 16, HEIGHT = 12;
-//const int WIDTH = 320, HEIGHT = 240;
+//const int WIDTH = 16, HEIGHT = 12;
+const int WIDTH = 320, HEIGHT = 240;
 int sqrtSamples;
 int samples;
 
@@ -153,7 +153,7 @@ std::vector<HyperRay> CreateRays() {
 }
 
 std::vector<Sphere> CreateSpheres() {
-    const int SPHERES = 429;
+    const int SPHERES = 9;
     std::vector<Sphere> spheres = std::vector<Sphere>(SPHERES);
     spheres[0] = Sphere(1e5, Vector3(1e5+1,40.8,81.6),   Vector3(),Vector3(.75,.25,.25),DIFFUSE); // Left
     spheres[1] = Sphere(1e5, Vector3(-1e5+99,40.8,81.6), Vector3(),Vector3(.25,.25,.75),DIFFUSE); // Right
@@ -272,7 +272,14 @@ inline void Exhaustive(const int level,
 
     for (int i = -1; i < level; ++i)
         std::cout << "  ";
-    std::cout << "Exhaustive with counts: " << indexCount << " x " << sphereCount << std::endl;
+    std::cout << "Exhaustive with index valeus: " << indexOffset << " -> " << indexCount << 
+        " and sphere: " << sphereOffset << " -> " << sphereCount << std::endl;
+        for (int i = -1; i < level; ++i)
+            std::cout << "  ";
+        std::cout << "Spheres: ";
+        for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s)
+            std::cout << sphereIDs[s] << ", ";
+        std::cout << std::endl;
     
     for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
         const int rayID = rayIndices[i];
@@ -281,7 +288,7 @@ inline void Exhaustive(const int level,
             const Sphere sphere = spheres[sphereIDs[s]];
             const float t = sphere.Intersect(charles);
             if (0 < t && t < hits[i].t)
-                hits[i] = Hit(t, s);
+                hits[i] = Hit(t, sphereIDs[s]);
         }
     }
 };
@@ -312,21 +319,28 @@ struct PartitionSpheresByCone {
 
 // TODO split dacrt into 2? Split rays and split spheres.
 
-void const(Dacrt HyperCube& cube, const Cone& cone, const int level, const float minDistance, const float maxDistance, 
+void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float minDistance, const float maxDistance, 
            const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
            vector<Hit> &hits) {
-
+    
     // The termination criteria expreses that once the exhaustive O(r * s)
     // search is faster than performing another split we terminate recursion.
-    if (rayCount * sphereCount < 64 * (rayCount + sphereCount)) {
+    if (rayCount * sphereCount < 8 * (rayCount + sphereCount)) {
         Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount, hits);
     } else {
 
         for (int i = -1; i < level; ++i)
             std::cout << "  ";
-        std::cout << "Dacrt with counts: " << rayCount << " x " << sphereCount << std::endl;
+        std::cout << "Dacrt with ray valeus: " << rayOffset << " -> " << rayCount << 
+            " and sphere: " << sphereOffset << " -> " << sphereCount << std::endl;
+        for (int i = -1; i < level; ++i)
+            std::cout << "  ";
+        std::cout << "Spheres: ";
+        for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s)
+            std::cout << sphereIDs[s] << ", ";
+        std::cout << std::endl;
 
         // Split the hypercube along either u or v and partition the ray ids
         vector<int>::iterator begin = rayIDs.begin() + rayOffset;
@@ -347,12 +361,13 @@ void const(Dacrt HyperCube& cube, const Cone& cone, const int level, const float
             std::partition(begin, begin + sphereCount, 
                            PartitionSpheresByCone(spheres, lowerCone));
         int newSphereCount = spherePivot - begin;
-
+        
         // Perform exhaustive
         Dacrt(lowerCube, lowerCone, level+1, minDistance, maxDistance, 
               rays, rayIDs, rayOffset, newRayCount,
               spheres, sphereIDs, sphereOffset, newSphereCount, 
               hits);
+
 
         // Cube and cone for the upper side
         int upperRayOffset = rayOffset + newRayCount;
@@ -372,6 +387,8 @@ void const(Dacrt HyperCube& cube, const Cone& cone, const int level, const float
               rays, rayIDs, upperRayOffset, upperRayCount,
               spheres, sphereIDs, sphereOffset, newSphereCount, 
               hits);
+
+
 
 
 
@@ -460,12 +477,25 @@ int main(int argc, char *argv[]){
                   rays, rayIndices, rayOffset, rayCount,
                   spheres, sphereIDs, sphereOffset, sphereCount,
                   hits);
-            // Exhaustive(rays, rayIndices, rayOffset, rayCount,
+
+            // Exhaustive(0, rays, rayIndices, rayOffset, rayCount,
             //            spheres, sphereIDs, sphereOffset, sphereCount,
             //            hits);
             
             // Offset to beginning of next ray bundle.
             rayOffset += rayCount;
+            
+            // print hit screen
+            // int shits[WIDTH * HEIGHT];
+            // for (int i = 0; i < rayIndices.size(); ++i) {
+            //     int rayID = rayIndices[i];
+            //     shits[rayID] = hits[i].sphereID;
+            // }
+            // for (int y = 0; y < HEIGHT; ++y) {
+            //     for (int x = 0; x < WIDTH; ++x)
+            //         std::cout << shits[x + y * WIDTH] << ", ";
+            //     std::cout << std::endl;
+            // }
         }
 
         // Apply shading
