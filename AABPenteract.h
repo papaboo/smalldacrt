@@ -15,9 +15,9 @@ struct Bound1D {
         return (min + max) * 0.5f;
     }
 
-    inline std::string ToString() const {
+    inline std::string ToString(const int precision = 2) const {
         std::ostringstream out;
-        out << "[min: " << min << ", max: " << max << "]";
+        out << std::fixed << std::setprecision(precision) << "[min: " << min << ", max: " << max << "]";
         return out.str();
     }
 };
@@ -53,9 +53,12 @@ struct AABPenteract {
             v.min <= ray.point.v && ray.point.v <= v.max;
     }
 
-    inline std::string ToString() const {
+    /**
+     * @param p is the number of decimals that should be written to the string.
+     */
+    inline std::string ToString(const int p = 2) const {
         std::ostringstream out;
-        out << "[x" << x.ToString() << ", y" << y.ToString() << ", z" << z.ToString() << ", u" << u.ToString() << ", v" << v.ToString() << "]";
+        out << "[x" << x.ToString(p) << ", y" << y.ToString(p) << ", z" << z.ToString(p) << ", u" << u.ToString(p) << ", v" << v.ToString(p) << "]";
         return out.str();
     }
 };

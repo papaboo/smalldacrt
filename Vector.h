@@ -3,8 +3,9 @@
 #ifndef _SMALL_VECTOR_H_
 #define _SMALL_VECTOR_H_
 
+#include <iomanip>
 #include <string>
-#include <sstream>
+#include <iostream>
 
 template <class T>
 struct Vec3 {
@@ -71,9 +72,9 @@ struct Vec3 {
                        x * rhs.y - y * rhs.x);
     }
 
-    inline std::string ToString() const {
+    inline std::string ToString(const int precision = 2) const {
         std::ostringstream out;
-        out << "[" << x << ", " << y << ", " << z << "]";
+        out << std::fixed << std::setprecision(precision) << "[" << x << ", " << y << ", " << z << "]";
         return out.str();
     }
 };

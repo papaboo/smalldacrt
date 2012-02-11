@@ -1,7 +1,10 @@
 #ifndef _SMALL_CONE_H_
 #define _SMALL_CONE_H_
 
+#include <iomanip>
 #include <math.h>
+#include <string>
+#include <iostream>
 
 #include "Vector.h"
 #include "Ray.h"
@@ -54,9 +57,12 @@ struct Cone {
         return Dot((ray.origin - apex).Normalize(), ray.dir) > spreadAngle;
     }
 
-    inline std::string ToString() const {
+    /**
+     * @param p is the number of decimals that should be written to the string.
+     */
+    inline std::string ToString(const int p = 2) const {
         std::ostringstream out;
-        out << "[apex: " << apex.ToString() << ", angle: " << spreadAngle << ", direction: " << dir.ToString() << "]";
+        out << std::fixed << std::setprecision(p) << "[apex: " << apex.ToString(p) << ", angle: " << spreadAngle << ", direction: " << dir.ToString(p) << "]";
         return out.str();
     }
 
