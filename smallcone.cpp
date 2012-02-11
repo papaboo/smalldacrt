@@ -108,9 +108,9 @@ struct Fragment {
     Fragment() : emission(Vector3(0,0,0)), depth(0), f(Vector3(1,1,1)) {}
 };
 
-//const int WIDTH = 640, HEIGHT = 480;
 //const int WIDTH = 16, HEIGHT = 12;
-const int WIDTH = 320, HEIGHT = 240;
+const int WIDTH = 64, HEIGHT = 48;
+//const int WIDTH = 320, HEIGHT = 240;
 int sqrtSamples;
 int samples;
 
@@ -153,7 +153,7 @@ std::vector<HyperRay> CreateRays() {
 }
 
 std::vector<Sphere> CreateSpheres() {
-    const int SPHERES = 9;
+    const int SPHERES = 79;
     std::vector<Sphere> spheres = std::vector<Sphere>(SPHERES);
     spheres[0] = Sphere(1e5, Vector3(1e5+1,40.8,81.6),   Vector3(),Vector3(.75,.25,.25),DIFFUSE); // Left
     spheres[1] = Sphere(1e5, Vector3(-1e5+99,40.8,81.6), Vector3(),Vector3(.25,.25,.75),DIFFUSE); // Right
@@ -162,7 +162,7 @@ std::vector<Sphere> CreateSpheres() {
     spheres[4] = Sphere(1e5, Vector3(50, 1e5, 81.6),     Vector3(),Vector3(.75,.75,.75),DIFFUSE); // Bottom
     spheres[5] = Sphere(1e5, Vector3(50,-1e5+81.6,81.6), Vector3(),Vector3(.75,.75,.75),DIFFUSE) ;// Top
     spheres[6] = Sphere(600, Vector3(50,681.6-.27,81.6), Vector3(12,12,12),  Vector3(), DIFFUSE); // Light
-    spheres[7] = Sphere(16.5,Vector3(73,16.5,78),        Vector3(0,0,2),Vector3(1,1,1)*.999, REFRACTING); // Glas
+    spheres[7] = Sphere(16.5,Vector3(73,16.5,78),        Vector3(0,3,0),Vector3(1,1,1)*.999, REFRACTING); // Glas
     spheres[8] = Sphere(16.5,Vector3(27,16.5,47),        Vector3(),Vector3(1,1,1)*.999, SPECULAR) ;// Mirror
 
     for (int s = 9; s < SPHERES; ++s) {
@@ -170,7 +170,7 @@ std::vector<Sphere> CreateSpheres() {
         float radius = 1.0f + Rand01();
         Vector3 pos = Vector3(Rand01() * 100.0 , Rand01() * 100.0 , Rand01() * 100.0 + 50.0);
         Color c = Color(Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f);
-        spheres[s] = Sphere(radius, pos, c,  c, DIFFUSE);
+        spheres[s] = Sphere(radius, pos, Vector3(),  c, DIFFUSE);
     }
 
     return spheres;
@@ -182,8 +182,8 @@ void SimpleShade(vector<HyperRay>& rays, const vector<int>& rayIndices,
                  vector<int>& nextIndices, int &nextOffset) {
     
     for (int i = 0; i < rayIndices.size(); ++i) {
-        int rayID = rayIndices[i];
-        int sphereID = hits[i].sphereID;
+        const int rayID = rayIndices[i];
+        const int sphereID = hits[i].sphereID;
 
         if (sphereID == -1) continue;
 
@@ -214,8 +214,8 @@ void Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
            vector<int>& nextIndices, int &nextOffset) {
     
     for (int i = 0; i < rayIndices.size(); ++i) {
-        int rayID = rayIndices[i];
-        int sphereID = hits[i].sphereID;
+        const int rayID = rayIndices[i];
+        const int sphereID = hits[i].sphereID;
 
         if (sphereID == -1) {
             // std::cout << "ray: " << rays[rayID].ToRay().ToString() << " completely missed" << std::endl;
@@ -274,12 +274,6 @@ inline void Exhaustive(const int level,
         std::cout << "  ";
     std::cout << "Exhaustive with index valeus: " << indexOffset << " -> " << indexCount << 
         " and sphere: " << sphereOffset << " -> " << sphereCount << std::endl;
-        for (int i = -1; i < level; ++i)
-            std::cout << "  ";
-        std::cout << "Spheres: ";
-        for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s)
-            std::cout << sphereIDs[s] << ", ";
-        std::cout << std::endl;
     
     for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
         const int rayID = rayIndices[i];
@@ -317,8 +311,6 @@ struct PartitionSpheresByCone {
     bool operator()(int i) { return cone.DoesIntersect(spheres[i]); }
 };
 
-// TODO split dacrt into 2? Split rays and split spheres.
-
 void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float minDistance, const float maxDistance, 
            const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
@@ -326,21 +318,19 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
     
     // The termination criteria expreses that once the exhaustive O(r * s)
     // search is faster than performing another split we terminate recursion.
-    if (rayCount * sphereCount < 8 * (rayCount + sphereCount)) {
+    if (rayCount * sphereCount <= 16 * (rayCount + sphereCount)) {
         Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount, hits);
     } else {
 
-        for (int i = -1; i < level; ++i)
-            std::cout << "  ";
+        for (int i = -1; i < level; ++i) std::cout << "  ";
         std::cout << "Dacrt with ray valeus: " << rayOffset << " -> " << rayCount << 
-            " and sphere: " << sphereOffset << " -> " << sphereCount << std::endl;
-        for (int i = -1; i < level; ++i)
-            std::cout << "  ";
-        std::cout << "Spheres: ";
-        for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s)
-            std::cout << sphereIDs[s] << ", ";
-        std::cout << std::endl;
+            ", sphere: " << sphereOffset << " -> " << sphereCount << 
+            ", [min: " << minDistance << ", max: " << maxDistance << "]" << std::endl;
+        for (int i = -1; i < level; ++i) std::cout << "  ";
+        std::cout << " +---Cube: " << cube.ToString() << std::endl;
+        for (int i = -1; i < level; ++i) std::cout << "  ";
+        std::cout << " +---Cone: " << cone.ToString() << std::endl;
 
         // Split the hypercube along either u or v and partition the ray ids
         vector<int>::iterator begin = rayIDs.begin() + rayOffset;
@@ -387,23 +377,44 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
               rays, rayIDs, upperRayOffset, upperRayCount,
               spheres, sphereIDs, sphereOffset, newSphereCount, 
               hits);
-
-
-
-
-
-        // Partition based on the distance from the apex and place far away
-        // spheres first in the vector, so we don't accidentally overwrite them
-        // while traversing.
-
-
-
-        // Divide the hypercube along either u or v and partition the rays
-        
-        // First iterate over the near chunks, then the far ones.
     }
 }
 
+/**
+ * Partition based on the distance from the apex.
+ *
+ * @NOTE: For parallel processing the far away spheres should be first in the
+ * vector, so we don't accidentally overwrite them while traversing.
+ */
+void DacByDistance(const HyperCube& cube, const Cone& cone, const int level, const float minDistance, const float maxDistance, 
+                   const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
+                   const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
+                   vector<Hit> &hits) {
+
+    // The termination criteria expreses that once the exhaustive O(r * s)
+    // search is faster than performing another split we terminate recursion.
+    if (rayCount * sphereCount <= 64 * (rayCount + sphereCount)) {
+        Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
+                   spheres, sphereIDs, sphereOffset, sphereCount, hits);
+    } else {
+
+        for (int i = -1; i < level; ++i)
+            std::cout << "  ";
+        std::cout << "DacByDistance with ray valeus: " << rayOffset << " -> " << rayCount << 
+            " and sphere: " << sphereOffset << " -> " << sphereCount << std::endl;
+        for (int i = -1; i < level; ++i)
+            std::cout << "  ";
+        std::cout << "Cube: " << cube.ToString() << ", Cone: " << cone.ToString() << std::endl;
+
+        
+        // Partition the rays based on wether they start in the near cone or
+        // not.
+
+        // 
+    
+    }
+
+}
 
 bool CompareRayAxis (HyperRay lhs, HyperRay rhs) { return (lhs.axis < rhs.axis);}
 
@@ -413,7 +424,10 @@ struct SortRayIndicesByAxis {
     bool operator()(int i, int j) { return rays[i].axis < rays[j].axis; }
 };
 
+#include <iomanip>
+
 int main(int argc, char *argv[]){
+
     sqrtSamples = argc == 2 ? atoi(argv[1]) : 1; // # samples
     samples = sqrtSamples * sqrtSamples;
 
@@ -472,8 +486,12 @@ int main(int argc, char *argv[]){
             AABB bounds = CalcAABB(spheres, sphereIDs.begin(), sphereIDs.end());
             //std::cout << "  Bounding box " << bounds.ToString() << std::endl;
             
+            float rad = (bounds.max - bounds.min).Length() * 0.5f;
+            float max = (cone.apex - bounds.Center()).Length() + rad;
+            float min = std::max(0.0f, max - 2.0f * rad);
+
             // perform dacrt
-            Dacrt(hc, cone, 0, 0, 1e30, 
+            Dacrt(hc, cone, 0, min, max, 
                   rays, rayIndices, rayOffset, rayCount,
                   spheres, sphereIDs, sphereOffset, sphereCount,
                   hits);
