@@ -109,8 +109,8 @@ struct Fragment {
 };
 
 //const int WIDTH = 16, HEIGHT = 12;
-const int WIDTH = 64, HEIGHT = 48;
-//const int WIDTH = 320, HEIGHT = 240;
+//const int WIDTH = 64, HEIGHT = 48;
+const int WIDTH = 320, HEIGHT = 240;
 int sqrtSamples;
 int samples;
 
@@ -198,6 +198,32 @@ void SimpleShade(vector<HyperRay>& rays, const vector<int>& rayIndices,
             Vector3 reflect = ray.dir - nl * 2 * Dot(nl, ray.dir);
             rays[rayID] = HyperRay(Ray(hitPos + reflect * 0.1f, reflect));
             nextIndices[nextOffset++] = rayID;
+            break;
+        }
+        case REFRACTING: {
+            Vector3 reflect = ray.dir - norm * 2.0f * Dot(norm, ray.dir);
+            bool into = Dot(norm, nl) > 0.0f;
+            float nc = 1.0f; 
+            float nt = 1.5f;
+            float nnt = into ? nc/nt : nt/nc;
+            float ddn = Dot(ray.dir, nl);
+            float cos2t = 1.0f - nnt * nnt * (1.0f - ddn * ddn);
+            // If total internal reflection
+            if (cos2t < 0.0f) {
+                rays[rayID] = HyperRay(Ray(hitPos + reflect * 0.1f, reflect));
+            } else {
+
+                Vector3 tDir = (ray.dir * nnt - norm * ((into?1.0f:-1.0f) * (ddn*nnt+sqrt(cos2t)))).Normalize();
+                float a=nt-nc, b=nt+nc, R0=a*a/(b*b), c = 1-(into?-ddn : Dot(tDir, norm));
+                float Re=R0+(1-R0)*c*c*c*c*c,Tr=1-Re;
+                float P=0.25f + 0.5f * Re; 
+                float RP = Re / P, TP = Tr / (1.0f-P);
+                if (Rand01() < P) // reflection
+                    rays[rayID] = HyperRay(Ray(hitPos + reflect * 0.1f, reflect));
+                else 
+                    rays[rayID] = HyperRay(Ray(hitPos + tDir * 0.1f, tDir));
+                nextIndices[nextOffset++] = rayID;
+            }
             break;
         }
         default:
