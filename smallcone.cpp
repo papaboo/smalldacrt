@@ -343,7 +343,7 @@ struct PartitionSpheresByCone {
     }
 };
 
-void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float minDistance, const float maxDistance, 
+void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
            const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
            vector<Hit> &hits) {
@@ -378,15 +378,16 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
         Cone lowerCone = lowerCube.ConeBounds();
 
         // Partition spheres according to cone
-        float min = maxDistance, max = minDistance;
+        float min = coneMin + coneRange, max = coneMin;
         begin = sphereIDs.begin() + sphereOffset;
         vector<int>::iterator spherePivot = 
             std::partition(begin, begin + sphereCount, 
                            PartitionSpheresByCone(spheres, lowerCone, min, max));
+        min = std::max(min, 0.0f);
         int newSphereCount = spherePivot - begin;
         
         // Perform exhaustive
-        Dacrt(lowerCube, lowerCone, level+1, std::max(min, minDistance), std::min(max, maxDistance), 
+        Dacrt(lowerCube, lowerCone, level+1, min, std::min(coneRange, max - min), 
               rays, rayIDs, rayOffset, newRayCount,
               spheres, sphereIDs, sphereOffset, newSphereCount, 
               hits);
@@ -399,15 +400,16 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
         Cone upperCone = upperCube.ConeBounds();
 
         // Partition spheres according to cone
-        min = maxDistance; max = minDistance;
+        min = coneMin + coneRange; max = coneMin;
         begin = sphereIDs.begin() + sphereOffset;
         spherePivot = 
             std::partition(begin, begin + sphereCount, 
                            PartitionSpheresByCone(spheres, upperCone, min, max));
+        min = std::max(min, 0.0f);
         newSphereCount = spherePivot - begin;
 
         // Perform exhaustive        
-        Dacrt(upperCube, upperCone, level+1, std::max(min, minDistance), std::min(max, maxDistance), 
+        Dacrt(upperCube, upperCone, level+1, min, std::min(coneRange, max - min), 
               rays, rayIDs, upperRayOffset, upperRayCount,
               spheres, sphereIDs, sphereOffset, newSphereCount, 
               hits);
@@ -420,7 +422,7 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
  * @NOTE: For parallel processing the far away spheres should be first in the
  * vector, so we don't accidentally overwrite them while traversing.
  */
-void DacByDistance(const HyperCube& cube, const Cone& cone, const int level, const float minDistance, const float maxDistance, 
+void DacByDistance(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange, 
                    const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
                    const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
                    vector<Hit> &hits) {
@@ -512,11 +514,12 @@ int main(int argc, char *argv[]){
             vector<int>::iterator spherePivot = 
                 std::partition(sphereIDs.begin(), sphereIDs.end(), 
                                PartitionSpheresByCone(spheres, hc.ConeBounds(), min, max));
+            min = std::max(min, 0.0f);
             int sphereCount = spherePivot - sphereIDs.begin();
             int sphereOffset = 0;
 
             // perform dacrt
-            Dacrt(hc, cone, 0, std::max(min, 0.0f), max, 
+            Dacrt(hc, cone, 0, min, max - min, 
                   rays, rayIndices, rayOffset, rayCount,
                   spheres, sphereIDs, sphereOffset, sphereCount,
                   hits);
