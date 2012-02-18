@@ -58,6 +58,10 @@ struct Vec3 {
         return sqrt(x * x + y * y + z * z);
     }
 
+    inline T LengthSquared() {
+        return x * x + y * y + z * z;
+    }
+
     inline Vec3<T>& Normalize(){ 
         return *this = *this / Length();
     }

@@ -1,6 +1,8 @@
 #ifndef _SMALL_HYPER_RAY_H_
 #define _SMALL_HYPER_RAY_H_
 
+#include <math.h>
+
 #include "Ray.h"
 #include "Sphere.h"
 
@@ -19,7 +21,7 @@ struct HyperRay { // For lack of a better name
         point.y = charles.origin.y;
         point.z = charles.origin.z;
         
-        Vector3 absDir = Vector3(std::fabs(charles.dir.x), std::fabs(charles.dir.y), std::fabs(charles.dir.z));
+        Vector3 absDir = Vector3(fabs(charles.dir.x), fabs(charles.dir.y), fabs(charles.dir.z));
         if (absDir.x > absDir.y && absDir.x > absDir.z) { // x is dominant
             point.u = charles.dir.y / absDir.x;
             point.v = charles.dir.z / absDir.x;
@@ -45,9 +47,8 @@ struct HyperRay { // For lack of a better name
         return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0);
     }
 
-    inline Ray ToRay() const {
-        return Ray(Vector3(point.x, point.y, point.z), 
-                   Direction().Normalize());
+    inline Vector3 Position() const {
+        return Vector3(point.x, point.y, point.z);
     }
 
     inline Vector3 Direction() const {
@@ -65,6 +66,11 @@ struct HyperRay { // For lack of a better name
         case negZ:
             return Vector3(point.u, point.v, -1.0f);
         }        
+    }
+
+    inline Ray ToRay() const {
+        return Ray(Position(), 
+                   Direction().Normalize());
     }
 
     inline std::string ToString() const {

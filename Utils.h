@@ -2,6 +2,8 @@
 #define _SMALL_UTILS_H_
 
 #include <math.h>
+#include <vector>
+
 #include "AABPenteract.h"
 #include "Cone.h"
 
@@ -18,8 +20,8 @@ inline int ToByte(float v) {
     return int(pow(Clamp01(v),1/2.2)*255+.5);
 }
 
-AABB CalcAABB(vector<Sphere>::const_iterator begin, 
-              const vector<Sphere>::const_iterator end) {
+AABB CalcAABB(std::vector<Sphere>::const_iterator begin, 
+              const std::vector<Sphere>::const_iterator end) {
     AABB res(*begin);
     begin++;
     while (begin != end) {
@@ -30,8 +32,8 @@ AABB CalcAABB(vector<Sphere>::const_iterator begin,
     return res;
 }
 
-AABB CalcAABB(const vector<Sphere> spheres, 
-              vector<int>::const_iterator begin, const vector<int>::const_iterator end) {
+AABB CalcAABB(const std::vector<Sphere> spheres, 
+              std::vector<int>::const_iterator begin, const std::vector<int>::const_iterator end) {
     AABB res(spheres[*begin]);
     begin++;
     while (begin != end) {
@@ -41,10 +43,10 @@ AABB CalcAABB(const vector<Sphere> spheres,
     return res;
 }
 
-Sphere CalcBoundingSphere(const vector<Sphere> spheres, 
-                          const vector<int>::const_iterator begin, const vector<int>::const_iterator end) {
+Sphere CalcBoundingSphere(const std::vector<Sphere> spheres, 
+                          const std::vector<int>::const_iterator begin, const std::vector<int>::const_iterator end) {
     Vector3 pos = spheres[*begin].position;
-    vector<int>::const_iterator itr = begin+1;
+    std::vector<int>::const_iterator itr = begin+1;
     while (itr != end) {
         pos += spheres[*itr].position;
         ++itr;
