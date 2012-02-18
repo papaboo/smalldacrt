@@ -108,16 +108,16 @@ struct Fragment {
     Fragment() : emission(Vector3(0,0,0)), depth(0), f(Vector3(1,1,1)) {}
 };
 
-//const int WIDTH = 16, HEIGHT = 12;
+//const int WIDTH = 32, HEIGHT = 24;
 //const int WIDTH = 64, HEIGHT = 48;
 const int WIDTH = 320, HEIGHT = 240;
 int sqrtSamples;
 int samples;
 
-inline int Index(int x, int y, int sub) {
+inline int Index(const int x, const int y, const int sub) {
     return (x + y * WIDTH) * samples + sub;
 }
-inline int Index(int x, int y, int subX, int subY) {
+inline int Index(const int x, const int y, const int subX, const int subY) {
     return (x + y * WIDTH) * samples + subX + subY * sqrtSamples;
 }
 
@@ -183,13 +183,13 @@ void SimpleShade(vector<HyperRay>& rays, const vector<int>& rayIndices,
     
     for (int i = 0; i < rayIndices.size(); ++i) {
         const int rayID = rayIndices[i];
-        const int sphereID = hits[i].sphereID;
+        const int sphereID = hits[rayID].sphereID;
 
         if (sphereID == -1) continue;
 
         const Ray ray = rays[rayID].ToRay();
         const Sphere sphere = spheres[sphereID];
-        const Vector3 hitPos = ray.origin + ray.dir * hits[i].t;
+        const Vector3 hitPos = ray.origin + ray.dir * hits[rayID].t;
         const Vector3 norm = (hitPos - sphere.position).Normalize();
         const Vector3 nl = Dot(norm, ray.dir) < 0 ? norm : norm * -1;
 
@@ -241,7 +241,7 @@ void Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
     
     for (int i = 0; i < rayIndices.size(); ++i) {
         const int rayID = rayIndices[i];
-        const int sphereID = hits[i].sphereID;
+        const int sphereID = hits[rayID].sphereID;
 
         if (sphereID == -1) {
             // std::cout << "ray: " << rays[rayID].ToRay().ToString() << " completely missed" << std::endl;
@@ -250,7 +250,7 @@ void Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
 
         const Ray ray = rays[rayID].ToRay();
         const Sphere sphere = spheres[sphereID];
-        const Vector3 hitPos = ray.origin + ray.dir * hits[i].t;
+        const Vector3 hitPos = ray.origin + ray.dir * hits[rayID].t;
         const Vector3 norm = (hitPos - sphere.position).Normalize();
         const Vector3 nl = Dot(norm, ray.dir) < 0 ? norm : norm * -1;
         Color f = sphere.color;
@@ -307,8 +307,8 @@ inline void Exhaustive(const int level,
         for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
             const Sphere sphere = spheres[sphereIDs[s]];
             const float t = sphere.Intersect(charles);
-            if (0 < t && t < hits[i].t)
-                hits[i] = Hit(t, sphereIDs[s]);
+            if (0 < t && t < hits[rayID].t)
+                hits[rayID] = Hit(t, sphereIDs[s]);
         }
     }
 };
@@ -358,7 +358,7 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
         for (int i = -1; i < level; ++i) std::cout << "  ";
         std::cout << "Dacrt with ray valeus: " << rayOffset << " -> " << rayCount << 
             ", sphere: " << sphereOffset << " -> " << sphereCount << 
-            ", [min: " << minDistance << ", max: " << maxDistance << "]" << std::endl;
+            ", [min: " << coneMin << ", range: " << coneRange << "]" << std::endl;
         for (int i = -1; i < level; ++i) std::cout << "  ";
         std::cout << " +---Cube: " << cube.ToString() << std::endl;
         for (int i = -1; i < level; ++i) std::cout << "  ";
@@ -416,6 +416,15 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
     }
 }
 
+struct PartitionRaysByDistance {
+    const Vector3 apex;
+    const float dist;
+    const vector<HyperRay>& rays;
+    const vector<Hit>& hits;
+    PartitionRaysByDistance(const Vector3 a, const float d, const vector<HyperRay>& r, const vector<Hit>& h) 
+        : apex(a), dist(d), rays(r), hits(h) {}
+};
+
 /**
  * Partition based on the distance from the apex.
  *
@@ -427,8 +436,8 @@ void DacByDistance(const HyperCube& cube, const Cone& cone, const int level, con
                    const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
                    vector<Hit> &hits) {
 
-    // The termination criteria expreses that once the exhaustive O(r * s)
-    // search is faster than performing another split we terminate recursion.
+    // The termination criteria expreses that once the exhaustive O(r*s) search
+    // is faster than performing another O(r+s) split we terminate recursion.
     if (rayCount * sphereCount <= 64 * (rayCount + sphereCount)) {
         Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount, hits);
@@ -437,15 +446,17 @@ void DacByDistance(const HyperCube& cube, const Cone& cone, const int level, con
         for (int i = -1; i < level; ++i)
             std::cout << "  ";
         std::cout << "DacByDistance with ray valeus: " << rayOffset << " -> " << rayCount << 
-            " and sphere: " << sphereOffset << " -> " << sphereCount << std::endl;
+            " and sphere: " << sphereOffset << " -> " << sphereCount << 
+            ", [min: " << coneMin << ", range: " << coneRange << "]" << std::endl;
         for (int i = -1; i < level; ++i)
             std::cout << "  ";
         std::cout << "Cube: " << cube.ToString() << ", Cone: " << cone.ToString() << std::endl;
 
-
         // Calc min and max while partitioning spheres by cone?
         // -- or -- 
         // Calc splitting position while partitioning spheres by cone?
+        
+        
         
     }
 
@@ -487,7 +498,7 @@ int main(int argc, char *argv[]){
 
         vector<int> nextRayIndices(rayIndices.size());
         int nextOffset = 0;
-        vector<Hit> hits(rayIndices.size());
+        vector<Hit> hits(rays.size());
 
         // For each hypercube
         int rayOffset = 0;
