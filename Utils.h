@@ -1,6 +1,7 @@
 #ifndef _SMALL_UTILS_H_
 #define _SMALL_UTILS_H_
 
+#include <algorithm>
 #include <math.h>
 #include <vector>
 
@@ -64,6 +65,46 @@ Sphere CalcBoundingSphere(const std::vector<Sphere> spheres,
     }
     
     return Sphere(radius, pos);
+}
+
+enum PartitionSide {LOWER = 1, UPPER = 2, BOTH = 3};
+
+template <class T, class Predicate>
+int NonDisjunctPartition(std::vector<T> &vec, int offset, Predicate pred) {
+
+    int first = offset;
+    int last = vec.size();
+
+    // vec.reserve(vec.size() * 1.2f);
+    
+    while (true) {
+        PartitionSide ps;
+        // Check leftside
+        while (first != last && (ps = pred(vec[first])) != UPPER) {
+            if (ps == BOTH)
+                vec.push_back(vec[first]);
+            ++first;
+        }
+        if (first==last--) break;
+
+        // Check rightside        
+        while (first != last && (ps = pred(vec[last])) != LOWER) {
+            if (ps == BOTH) {
+                vec.push_back(vec[last]);
+                break;
+            }
+            --last;
+        }
+        if (first==last) break;
+        
+        // swap
+        T tmp = vec[first];
+        vec[first] = vec[last];
+        vec[last] = tmp;
+        ++first;
+    }
+
+    return first;
 }
 
 #endif
