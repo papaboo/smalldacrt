@@ -15,6 +15,10 @@ struct Bound1D {
         return (min + max) * 0.5f;
     }
 
+    inline float Range() const {
+        return max - min;
+    }
+
     inline std::string ToString(const int precision = 2) const {
         std::ostringstream out;
         out << std::fixed << std::setprecision(precision) << "[min: " << min << ", max: " << max << "]";
