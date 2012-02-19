@@ -313,6 +313,11 @@ inline void Exhaustive(const int level,
     }
 };
 
+void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
+           const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
+           const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
+           vector<Hit> &hits);
+
 struct PartitionRaysByU {
     const vector<HyperRay>& rays;
     const float value;
@@ -343,6 +348,144 @@ struct PartitionSpheresByCone {
     }
 };
 
+inline void DacrtBySpread(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
+                          const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
+                          const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
+                          vector<Hit> &hits) {
+    
+    // Split the hypercube along either u or v and partition the ray ids
+    vector<int>::iterator begin = rayIDs.begin() + rayOffset;
+    vector<int>::iterator rayPivot = level % 2 == 0 ?
+        std::partition(begin, begin + rayCount,
+                           PartitionRaysByU(rays, cube.cube.u.Middle())) :
+        std::partition(begin, begin + rayCount,
+                       PartitionRaysByV(rays, cube.cube.v.Middle()));
+    int newRayCount = rayPivot - begin;
+    
+        // Cube and cone for the lower side
+    HyperCube lowerCube = HyperCube(cube.axis, rays, begin, newRayCount);
+    Cone lowerCone = lowerCube.ConeBounds();
+    
+    // Partition spheres according to cone
+    float min = coneMin + coneRange, max = coneMin;
+    begin = sphereIDs.begin() + sphereOffset;
+    vector<int>::iterator spherePivot = 
+        std::partition(begin, begin + sphereCount, 
+                       PartitionSpheresByCone(spheres, lowerCone, min, max));
+    min = std::max(min, 0.0f);
+    int newSphereCount = spherePivot - begin;
+    
+    // Perform Dacrt
+    Dacrt(lowerCube, lowerCone, level+1, min, std::min(coneRange, max - min), 
+          rays, rayIDs, rayOffset, newRayCount,
+          spheres, sphereIDs, sphereOffset, newSphereCount, 
+          hits);
+    
+    
+    // Cube and cone for the upper side
+    int upperRayOffset = rayOffset + newRayCount;
+    int upperRayCount = rayCount - newRayCount;
+    HyperCube upperCube = HyperCube(cube.axis, rays, rayIDs.begin() + upperRayOffset, upperRayCount);
+    Cone upperCone = upperCube.ConeBounds();
+    
+    // Partition spheres according to cone
+    min = coneMin + coneRange; max = coneMin;
+    begin = sphereIDs.begin() + sphereOffset;
+    spherePivot = 
+        std::partition(begin, begin + sphereCount, 
+                       PartitionSpheresByCone(spheres, upperCone, min, max));
+    min = std::max(min, 0.0f);
+    newSphereCount = spherePivot - begin;
+    
+    // Perform Dacrt
+    Dacrt(upperCube, upperCone, level+1, min, std::min(coneRange, max - min), 
+          rays, rayIDs, upperRayOffset, upperRayCount,
+          spheres, sphereIDs, sphereOffset, newSphereCount, 
+          hits);
+}
+
+/**
+ * Partition rays by their distance to the apex.
+ */
+struct PartitionRaysByDistance {
+    const Vector3 apex;
+    const float minDistSquared;
+    const float maxDistSquared;
+    const vector<HyperRay>& rays;
+    const vector<Hit>& hits;
+    PartitionRaysByDistance(const Vector3 a, const float min, const float max, 
+                            const vector<HyperRay>& r, const vector<Hit>& h) 
+        : apex(a), minDistSquared(min*min), maxDistSquared(max*max), rays(r), hits(h) {}
+    bool operator()(int i) { 
+        Hit h = hits[i];
+        if (h.sphereID != -1) { // Ray has already hit something, 
+            Vector3 pos = rays[i].ToRay().PositionAt(h.t);
+            float dd = (apex - pos).LengthSquared();
+            return minDistSquared < dd;
+        } else { // Ray hasn't hit anything. Include it if it is below the maxDistance
+            float dd = (apex - rays[i].Position()).LengthSquared();
+            return dd < maxDistSquared;
+        }
+    }
+};
+
+struct PartitionSpheresByDistance {
+    const Vector3 apex;
+    const float min;
+    const float max;
+    const vector<Sphere>& spheres;
+    PartitionSpheresByDistance(const Vector3 a, const float min,
+                               const float max, const vector<Sphere>& ss) 
+        : apex(a), min(min), max(max), spheres(ss) {}
+    bool operator()(int i) {
+        float l = (apex - spheres[i].position).Length();
+        return min < l + spheres[i].radius && l - spheres[i].radius < max;
+    }
+};
+
+/**
+ * Partition based on the distance from the apex.
+ *
+ * @NOTE: For parallel processing the far away spheres should be first in the
+ * vector, so we don't accidentally overwrite them while traversing.
+ */
+void DacByDistance(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange, 
+                   const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
+                   const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
+                   vector<Hit> &hits) {
+
+    // Calc min and max while partitioning spheres by cone?
+    // -- or -- 
+    // Calc splitting position while partitioning spheres by cone?
+    
+    const int SPLITS = 4;
+    const float range = coneRange / SPLITS;
+    for (int i = 0; i < SPLITS; ++i) {
+        const float min = coneMin + i * range;
+        
+        // Partition the rays according to min and max
+        vector<int>::iterator begin = rayIDs.begin() + rayOffset;
+        vector<int>::iterator rayPivot = 
+            std::partition(begin, begin + rayCount,
+                           PartitionRaysByDistance(cone.apex, min, min+range,
+                                                   rays, hits));
+        int newRayCount = rayPivot - begin;
+        
+        begin = sphereIDs.begin() + sphereOffset;
+        vector<int>::iterator spherePivot = 
+            std::partition(begin, begin + sphereCount, 
+                               PartitionSpheresByDistance(cone.apex, min, min+range, spheres));
+        int newSphereCount = spherePivot - begin;
+        
+        // @ TODO recalculate cube 'n cone? Will be done in DacBySpread anyway
+
+        Dacrt(cube, cone, level, min, min+range,
+              rays, rayIDs, rayOffset, newRayCount,
+              spheres, sphereIDs, sphereOffset, newSphereCount, 
+              hits);
+    }
+}
+
 void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
            const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
@@ -364,102 +507,11 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
         for (int i = -1; i < level; ++i) std::cout << "  ";
         std::cout << " +---Cone: " << cone.ToString() << std::endl;
 
-        // Split the hypercube along either u or v and partition the ray ids
-        vector<int>::iterator begin = rayIDs.begin() + rayOffset;
-        vector<int>::iterator rayPivot = level % 2 == 0 ?
-            std::partition(begin, begin + rayCount,
-                           PartitionRaysByU(rays, cube.cube.u.Middle())) :
-            std::partition(begin, begin + rayCount,
-                           PartitionRaysByV(rays, cube.cube.v.Middle()));
-        int newRayCount = rayPivot - begin;
-
-        // Cube and cone for the lower side
-        HyperCube lowerCube = HyperCube(cube.axis, rays, begin, newRayCount);
-        Cone lowerCone = lowerCube.ConeBounds();
-
-        // Partition spheres according to cone
-        float min = coneMin + coneRange, max = coneMin;
-        begin = sphereIDs.begin() + sphereOffset;
-        vector<int>::iterator spherePivot = 
-            std::partition(begin, begin + sphereCount, 
-                           PartitionSpheresByCone(spheres, lowerCone, min, max));
-        min = std::max(min, 0.0f);
-        int newSphereCount = spherePivot - begin;
-        
-        // Perform exhaustive
-        Dacrt(lowerCube, lowerCone, level+1, min, std::min(coneRange, max - min), 
-              rays, rayIDs, rayOffset, newRayCount,
-              spheres, sphereIDs, sphereOffset, newSphereCount, 
-              hits);
-
-
-        // Cube and cone for the upper side
-        int upperRayOffset = rayOffset + newRayCount;
-        int upperRayCount = rayCount - newRayCount;
-        HyperCube upperCube = HyperCube(cube.axis, rays, rayIDs.begin() + upperRayOffset, upperRayCount);
-        Cone upperCone = upperCube.ConeBounds();
-
-        // Partition spheres according to cone
-        min = coneMin + coneRange; max = coneMin;
-        begin = sphereIDs.begin() + sphereOffset;
-        spherePivot = 
-            std::partition(begin, begin + sphereCount, 
-                           PartitionSpheresByCone(spheres, upperCone, min, max));
-        min = std::max(min, 0.0f);
-        newSphereCount = spherePivot - begin;
-
-        // Perform exhaustive        
-        Dacrt(upperCube, upperCone, level+1, min, std::min(coneRange, max - min), 
-              rays, rayIDs, upperRayOffset, upperRayCount,
-              spheres, sphereIDs, sphereOffset, newSphereCount, 
-              hits);
+        DacrtBySpread(cube, cone, level, coneMin, coneRange,
+                      rays, rayIDs, rayOffset, rayCount,
+                      spheres, sphereIDs, sphereOffset, sphereCount,
+                      hits);
     }
-}
-
-struct PartitionRaysByDistance {
-    const Vector3 apex;
-    const float dist;
-    const vector<HyperRay>& rays;
-    const vector<Hit>& hits;
-    PartitionRaysByDistance(const Vector3 a, const float d, const vector<HyperRay>& r, const vector<Hit>& h) 
-        : apex(a), dist(d), rays(r), hits(h) {}
-};
-
-/**
- * Partition based on the distance from the apex.
- *
- * @NOTE: For parallel processing the far away spheres should be first in the
- * vector, so we don't accidentally overwrite them while traversing.
- */
-void DacByDistance(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange, 
-                   const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
-                   const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
-                   vector<Hit> &hits) {
-
-    // The termination criteria expreses that once the exhaustive O(r*s) search
-    // is faster than performing another O(r+s) split we terminate recursion.
-    if (rayCount * sphereCount <= 64 * (rayCount + sphereCount)) {
-        Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
-                   spheres, sphereIDs, sphereOffset, sphereCount, hits);
-    } else {
-
-        for (int i = -1; i < level; ++i)
-            std::cout << "  ";
-        std::cout << "DacByDistance with ray valeus: " << rayOffset << " -> " << rayCount << 
-            " and sphere: " << sphereOffset << " -> " << sphereCount << 
-            ", [min: " << coneMin << ", range: " << coneRange << "]" << std::endl;
-        for (int i = -1; i < level; ++i)
-            std::cout << "  ";
-        std::cout << "Cube: " << cube.ToString() << ", Cone: " << cone.ToString() << std::endl;
-
-        // Calc min and max while partitioning spheres by cone?
-        // -- or -- 
-        // Calc splitting position while partitioning spheres by cone?
-        
-        
-        
-    }
-
 }
 
 bool CompareRayAxis (HyperRay lhs, HyperRay rhs) { return (lhs.axis < rhs.axis);}
