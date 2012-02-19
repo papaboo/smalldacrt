@@ -296,11 +296,6 @@ inline void Exhaustive(const int level,
                        const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
                        vector<Hit> &hits) {
 
-    for (int i = -1; i < level; ++i)
-        std::cout << "  ";
-    std::cout << "Exhaustive with index valeus: " << indexOffset << " -> " << indexCount << 
-        " and sphere: " << sphereOffset << " -> " << sphereCount << std::endl;
-    
     for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
         const int rayID = rayIndices[i];
         const Ray charles = rays[rayID].ToRay();
@@ -354,10 +349,12 @@ inline void DacrtBySpread(const HyperCube& cube, const Cone& cone, const int lev
                           vector<Hit> &hits) {
     
     // Split the hypercube along either u or v and partition the ray ids
+    float uRange = cube.cube.u.Range();
+    float vRange = cube.cube.v.Range();
     vector<int>::iterator begin = rayIDs.begin() + rayOffset;
-    vector<int>::iterator rayPivot = level % 2 == 0 ?
+    vector<int>::iterator rayPivot = uRange > vRange ?
         std::partition(begin, begin + rayCount,
-                           PartitionRaysByU(rays, cube.cube.u.Middle())) :
+                       PartitionRaysByU(rays, cube.cube.u.Middle())) :
         std::partition(begin, begin + rayCount,
                        PartitionRaysByV(rays, cube.cube.v.Middle()));
     int newRayCount = rayPivot - begin;
@@ -449,10 +446,10 @@ struct PartitionSpheresByDistance {
  * @NOTE: For parallel processing the far away spheres should be first in the
  * vector, so we don't accidentally overwrite them while traversing.
  */
-void DacByDistance(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange, 
-                   const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
-                   const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
-                   vector<Hit> &hits) {
+inline void DacrtByDistance(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange, 
+                            const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
+                            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
+                            vector<Hit> &hits) {
 
     // Calc min and max while partitioning spheres by cone?
     // -- or -- 
@@ -479,7 +476,7 @@ void DacByDistance(const HyperCube& cube, const Cone& cone, const int level, con
         
         // @ TODO recalculate cube 'n cone? Will be done in DacBySpread anyway
 
-        Dacrt(cube, cone, level, min, min+range,
+        Dacrt(cube, cone, level+1, min, min+range,
               rays, rayIDs, rayOffset, newRayCount,
               spheres, sphereIDs, sphereOffset, newSphereCount, 
               hits);
@@ -494,6 +491,11 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
     // The termination criteria expreses that once the exhaustive O(r * s)
     // search is faster than performing another split we terminate recursion.
     if (rayCount * sphereCount <= 16 * (rayCount + sphereCount)) {
+
+        for (int i = -1; i < level; ++i) std::cout << "  ";
+        std::cout << "Exhaustive with index valeus: " << rayOffset << " -> " << rayCount << 
+            " and sphere: " << sphereOffset << " -> " << sphereCount << std::endl;
+        
         Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount, hits);
     } else {
@@ -507,10 +509,16 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
         for (int i = -1; i < level; ++i) std::cout << "  ";
         std::cout << " +---Cone: " << cone.ToString() << std::endl;
 
-        DacrtBySpread(cube, cone, level, coneMin, coneRange,
-                      rays, rayIDs, rayOffset, rayCount,
-                      spheres, sphereIDs, sphereOffset, sphereCount,
-                      hits);
+        if (level % 3 == 0)
+            DacrtByDistance(cube, cone, level, coneMin, coneRange,
+                            rays, rayIDs, rayOffset, rayCount,
+                            spheres, sphereIDs, sphereOffset, sphereCount,
+                            hits);
+        else
+            DacrtBySpread(cube, cone, level, coneMin, coneRange,
+                          rays, rayIDs, rayOffset, rayCount,
+                          spheres, sphereIDs, sphereOffset, sphereCount,
+                          hits);
     }
 }
 
