@@ -153,7 +153,7 @@ std::vector<HyperRay> CreateRays() {
 }
 
 std::vector<Sphere> CreateSpheres() {
-    const int SPHERES = 29;
+    const int SPHERES = 829;
     std::vector<Sphere> spheres = std::vector<Sphere>(SPHERES);
     spheres[0] = Sphere(1e5, Vector3(1e5+1,40.8,81.6),   Vector3(),Vector3(.75,.25,.25),DIFFUSE); // Left
     spheres[1] = Sphere(1e5, Vector3(-1e5+99,40.8,81.6), Vector3(),Vector3(.25,.25,.75),DIFFUSE); // Right
@@ -170,7 +170,10 @@ std::vector<Sphere> CreateSpheres() {
         float radius = 1.0f + Rand01();
         Vector3 pos = Vector3(Rand01() * 100.0 , Rand01() * 100.0 , Rand01() * 100.0 + 50.0);
         Color c = Color(Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f);
-        spheres[s] = Sphere(radius, pos, Vector3(),  c, DIFFUSE);
+        float reflParam = Rand01();
+        ReflectionType rt = reflParam < 0.1f ? REFRACTING : (reflParam > 0.9f ? SPECULAR : DIFFUSE);
+        
+        spheres[s] = Sphere(radius, pos, Vector3(),  c, rt);
     }
 
     return spheres;
@@ -442,9 +445,6 @@ struct PartitionSpheresByDistance {
 
 /**
  * Partition based on the distance from the apex.
- *
- * @NOTE: For parallel processing the far away spheres should be first in the
- * vector, so we don't accidentally overwrite them while traversing.
  */
 inline void DacrtByDistance(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange, 
                             const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
@@ -467,7 +467,10 @@ inline void DacrtByDistance(const HyperCube& cube, const Cone& cone, const int l
                            PartitionRaysByDistance(cone.apex, min, min+range,
                                                    rays, hits));
         int newRayCount = rayPivot - begin;
-        
+
+        // Partition spheres according to min and max.
+        // @TODO use the offset to skip already tested spheres, by doing a non
+        // disjunct partitioning.
         begin = sphereIDs.begin() + sphereOffset;
         vector<int>::iterator spherePivot = 
             std::partition(begin, begin + sphereCount, 
@@ -487,28 +490,33 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
            const vector<HyperRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
            vector<Hit> &hits) {
+
+    const bool print = false;
     
     // The termination criteria expreses that once the exhaustive O(r * s)
     // search is faster than performing another split we terminate recursion.
     if (rayCount * sphereCount <= 16 * (rayCount + sphereCount)) {
-
-        for (int i = -1; i < level; ++i) std::cout << "  ";
-        std::cout << "Exhaustive with index valeus: " << rayOffset << " -> " << rayCount << 
-            " and sphere: " << sphereOffset << " -> " << sphereCount << std::endl;
+        if (print) {
+            for (int i = -1; i < level; ++i) std::cout << "  ";
+            std::cout << "Exhaustive with index valeus: " << rayOffset << " -> " << rayCount << 
+                " and sphere: " << sphereOffset << " -> " << sphereCount << std::endl;
+        }
         
         Exhaustive(level, rays, rayIDs, rayOffset, rayCount,
                    spheres, sphereIDs, sphereOffset, sphereCount, hits);
     } else {
 
-        for (int i = -1; i < level; ++i) std::cout << "  ";
-        std::cout << "Dacrt with ray valeus: " << rayOffset << " -> " << rayCount << 
-            ", sphere: " << sphereOffset << " -> " << sphereCount << 
-            ", [min: " << coneMin << ", range: " << coneRange << "]" << std::endl;
-        for (int i = -1; i < level; ++i) std::cout << "  ";
-        std::cout << " +---Cube: " << cube.ToString() << std::endl;
-        for (int i = -1; i < level; ++i) std::cout << "  ";
-        std::cout << " +---Cone: " << cone.ToString() << std::endl;
-
+        if (print) {
+            for (int i = -1; i < level; ++i) std::cout << "  ";
+            std::cout << "Dacrt with ray valeus: " << rayOffset << " -> " << rayCount << 
+                ", sphere: " << sphereOffset << " -> " << sphereCount << 
+                ", [min: " << coneMin << ", range: " << coneRange << "]" << std::endl;
+            for (int i = -1; i < level; ++i) std::cout << "  ";
+            std::cout << " +---Cube: " << cube.ToString() << std::endl;
+            for (int i = -1; i < level; ++i) std::cout << "  ";
+            std::cout << " +---Cone: " << cone.ToString() << std::endl;
+        }
+        
         if (level % 3 == 0)
             DacrtByDistance(cube, cone, level, coneMin, coneRange,
                             rays, rayIDs, rayOffset, rayCount,
@@ -597,22 +605,10 @@ int main(int argc, char *argv[]){
             
             // Offset to beginning of next ray bundle.
             rayOffset += rayCount;
-            
-            // print hit screen
-            // int shits[WIDTH * HEIGHT];
-            // for (int i = 0; i < rayIndices.size(); ++i) {
-            //     int rayID = rayIndices[i];
-            //     shits[rayID] = hits[i].sphereID;
-            // }
-            // for (int y = 0; y < HEIGHT; ++y) {
-            //     for (int x = 0; x < WIDTH; ++x)
-            //         std::cout << shits[x + y * WIDTH] << ", ";
-            //     std::cout << std::endl;
-            // }
         }
 
         // Apply shading
-        SimpleShade(rays, rayIndices, rayFrags, spheres, hits, nextRayIndices, nextOffset);
+        Shade(rays, rayIndices, rayFrags, spheres, hits, nextRayIndices, nextOffset);
         nextRayIndices.resize(nextOffset);
         
         rayIndices = nextRayIndices;
