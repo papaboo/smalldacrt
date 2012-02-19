@@ -1,6 +1,8 @@
 #ifndef _SMALL_AABB_H_
 #define _SMALL_AABB_H_
 
+#include <algorithm>
+
 struct AABB {
     Vector3 min;
     Vector3 max;
