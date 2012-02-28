@@ -29,17 +29,17 @@ struct Cone {
     inline bool DoesIntersect(const Sphere& sphere) const {
         // @TODO Handle reflex cones by inversion
         
-        Vector3 U = apex - dir * (sphere.radius / sin(spreadAngle));
+        const Vector3 U = apex - dir * (sphere.radius / sin(spreadAngle));
+        const float cosSqr = cos(spreadAngle) * cos(spreadAngle);
         Vector3 D = sphere.position - U;
         float dSqr = Dot(D,D);
         float e = Dot(dir, D);
-        float cosSqr = cos(spreadAngle) * cos(spreadAngle);
         
         if (e > 0.0f && e*e >= dSqr * cosSqr) {
             D = sphere.position - apex;
             dSqr = Dot(D,D);
             e = -Dot(dir, D);
-            float sinSqr = sin(spreadAngle) * sin(spreadAngle);
+            const float sinSqr = 1.0f - cosSqr;
             if (e > 0 && e*e >= dSqr * sinSqr)
                 return dSqr <= sphere.radius * sphere.radius;
             else
