@@ -42,6 +42,12 @@ struct AABB {
         return farT < nearT ? -1e30 : (nearT <= 0 ? farT : nearT);
     }
 
+    inline Vector3 ClosestPointOnSurface(const Vector3& p) const {
+        return Vector3(std::min(max.x, std::max(min.x, p.x)),
+                       std::min(max.y, std::max(min.y, p.y)),
+                       std::min(max.z, std::max(min.z, p.z)));
+    }
+
     inline std::string ToString() const {
         std::ostringstream out;
         out << "[min: " << min.ToString() << ", max: " << max.ToString() + "]";
