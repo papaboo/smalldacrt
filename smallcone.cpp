@@ -155,7 +155,7 @@ std::vector<HyperRay> CreateRays() {
 }
 
 std::vector<Sphere> CreateSpheres() {
-    const int SPHERES = 829;
+    const int SPHERES = 9;
     std::vector<Sphere> spheres = std::vector<Sphere>(SPHERES);
     spheres[0] = Sphere(1e5, Vector3(1e5+1,40.8,81.6),   Vector3(),Vector3(.75,.25,.25),DIFFUSE); // Left
     spheres[1] = Sphere(1e5, Vector3(-1e5+99,40.8,81.6), Vector3(),Vector3(.25,.25,.75),DIFFUSE); // Right
@@ -201,7 +201,7 @@ void SimpleShade(vector<HyperRay>& rays, const vector<int>& rayIndices,
         switch(sphere.reflection) {
         case SPECULAR: {
             Vector3 reflect = ray.dir - nl * 2 * Dot(nl, ray.dir);
-            rays[rayID] = HyperRay(Ray(hitPos + reflect * 0.1f, reflect));
+            rays[rayID] = HyperRay(Ray(hitPos + reflect * 0.01f, reflect));
             nextIndices[nextOffset++] = rayID;
             break;
         }
@@ -224,9 +224,9 @@ void SimpleShade(vector<HyperRay>& rays, const vector<int>& rayIndices,
                 float P=0.25f + 0.5f * Re; 
                 float RP = Re / P, TP = Tr / (1.0f-P);
                 if (Rand01() < P) // reflection
-                    rays[rayID] = HyperRay(Ray(hitPos + reflect * 0.1f, reflect));
+                    rays[rayID] = HyperRay(Ray(hitPos + reflect * 0.01f, reflect));
                 else 
-                    rays[rayID] = HyperRay(Ray(hitPos + tDir * 0.1f, tDir));
+                    rays[rayID] = HyperRay(Ray(hitPos + tDir * 0.01f, tDir));
                 nextIndices[nextOffset++] = rayID;
             }
             break;
@@ -239,11 +239,11 @@ void SimpleShade(vector<HyperRay>& rays, const vector<int>& rayIndices,
     }
 }
 
-void Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
+void Shade(vector<HyperRay>& rays, vector<int>& rayIndices,
            const vector<Fragment*>& frags, 
            const vector<Sphere>& spheres, const vector<Hit>& hits,
            vector<int>& nextIndices, int &nextOffset) {
-    
+
     for (int i = 0; i < rayIndices.size(); ++i) {
         const int rayID = rayIndices[i];
         const int sphereID = hits[rayID].sphereID;
@@ -287,7 +287,7 @@ void Shade(vector<HyperRay>& rays, const vector<int>& rayIndices,
             break;
         }
 
-        rays[rayID] = HyperRay(Ray(hitPos + newRayDir * 0.1f, newRayDir));
+        rays[rayID] = HyperRay(Ray(hitPos + newRayDir * 0.05f, newRayDir));
         frags[rayID]->emission += frags[rayID]->f * sphere.emission;
         frags[rayID]->f = frags[rayID]->f * f;
         nextIndices[nextOffset++] = rayID;
@@ -496,7 +496,7 @@ inline void DacrtByDistance(const HyperCube& cube, const Cone& cone, const int l
         begin = sphereIDs.begin() + sphereOffset;
         vector<int>::iterator spherePivot = 
             std::partition(begin, begin + sphereCount, 
-                               PartitionSpheresByDistance(cone.apex, min, partitionMax, spheres));
+                           PartitionSpheresByDistance(cone.apex, min, partitionMax, spheres));
         int newSphereCount = spherePivot - begin;
         
         // @ TODO recalculate cube 'n cone? Will be done in DacBySpread anyway
@@ -634,8 +634,10 @@ int main(int argc, char *argv[]){
             rayOffset += rayCount;
         }
 
+        std::sort(rayIndices.begin(), rayIndices.end());
         // Apply shading
-        SimpleShade(rays, rayIndices, rayFrags, spheres, hits, nextRayIndices, nextOffset);
+        std::cout << "  Apply shading" << std::endl;        
+        Shade(rays, rayIndices, rayFrags, spheres, hits, nextRayIndices, nextOffset);
         nextRayIndices.resize(nextOffset);
         
         rayIndices = nextRayIndices;
