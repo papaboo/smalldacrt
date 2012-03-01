@@ -23,14 +23,21 @@ struct Cone {
     Cone(const Vector3& apex, const Vector3& dir, const float spreadAngle)
         : apex(apex), dir(dir), spreadAngle(spreadAngle) {}
 
+    inline bool DoesIntersect(const Sphere& sphere) const {
+
+        const float sin = std::sin(spreadAngle);
+        const float cosSqr = std::cos(spreadAngle) * cos(spreadAngle);
+        
+        return DoesIntersect(sphere, sin, cosSqr);
+    }
+
     /**
      * http://www.geometrictools.com/Documentation/IntersectionSphereCone.pdf
      */
-    inline bool DoesIntersect(const Sphere& sphere) const {
+    inline bool DoesIntersect(const Sphere& sphere, const float sin, const float cosSqr) const {
         // @TODO Handle reflex cones by inversion
         
-        const Vector3 U = apex - dir * (sphere.radius / sin(spreadAngle));
-        const float cosSqr = cos(spreadAngle) * cos(spreadAngle);
+        const Vector3 U = apex - dir * (sphere.radius / sin);
         Vector3 D = sphere.position - U;
         float dSqr = Dot(D,D);
         float e = Dot(dir, D);

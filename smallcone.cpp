@@ -338,10 +338,13 @@ struct PartitionSpheresByCone {
     const vector<Sphere>& spheres;
     const Cone cone;
     float &min, &max;
+    float sinAngle, cosAngleSqr;
     PartitionSpheresByCone(const vector<Sphere>& spheres, const Cone cone, float &min, float &max)
-        : spheres(spheres), cone(cone), min(min), max(max) {}
+        : spheres(spheres), cone(cone), min(min), max(max), 
+          sinAngle(std::sin(cone.spreadAngle)), 
+          cosAngleSqr(std::cos(cone.spreadAngle) * std::cos(cone.spreadAngle)) {}
     bool operator()(int i) { 
-        if (cone.DoesIntersect(spheres[i])) {
+        if (cone.DoesIntersect(spheres[i], sinAngle, cosAngleSqr)) {
             float dist = (cone.apex - spheres[i].position).Length();
             min = std::min(min, dist - spheres[i].radius);
             max = std::max(max, dist + spheres[i].radius);
