@@ -14,12 +14,17 @@ struct Vec3 {
     Vec3() 
         : x(0), y(0), z(0) {}
 
-    Vec3(T pX, T pY, T pZ) 
+    Vec3(const T pX, const T pY, const T pZ) 
         : x(pX), y(pY), z(pZ) {}
 
     template<class C>
-    Vec3(Vec3<C> o) 
+    Vec3(const Vec3<C>& o) 
         : x(o.x), y(o.y), z(o.z) {}
+
+    inline Vec3<T>& operator=(const Vec3<T>& rhs) {
+        x = rhs.x; y = rhs.y; z = rhs.z;
+        return *this;
+    }
 
     inline Vec3<T> operator+(const T rhs) const {
         return Vec3<T>(x + rhs, y + rhs, z + rhs);
@@ -54,11 +59,11 @@ struct Vec3 {
         return Vec3<T>(x / rhs.x, y / rhs.y, z / rhs.z);
     }
 
-    inline T Length() {
+    inline T Length() const {
         return sqrt(x * x + y * y + z * z);
     }
 
-    inline T LengthSquared() {
+    inline T LengthSquared() const {
         return x * x + y * y + z * z;
     }
 
@@ -66,11 +71,11 @@ struct Vec3 {
         return *this = *this / Length();
     }
 
-    inline T Dot(const Vec3<T>& rhs) {
+    inline T Dot(const Vec3<T>& rhs) const {
         return x * rhs.x + y * rhs.y + z * rhs.z;
     }
     
-    inline Vec3<T> Cross(const Vec3<T>& rhs) {
+    inline Vec3<T> Cross(const Vec3<T>& rhs) const {
         return Vec3<T>(y * rhs.z - z * rhs.y, 
                        z * rhs.x - x * rhs.z,
                        x * rhs.y - y * rhs.x);
@@ -97,7 +102,7 @@ struct Vec5 {
         : x(x), y(y), z(z), u(u), v(v) {}
 
     template<class C>
-    Vec5(Vec5<C> o) 
+    Vec5(const Vec5<C>& o) 
         : x(o.x), y(o.y), z(o.z), u(o.u), v(o.v) {}
     
     inline std::string ToString() const {
