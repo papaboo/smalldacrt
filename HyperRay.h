@@ -47,7 +47,7 @@ struct HyperRay { // For lack of a better name
         return (t=b-det)>eps ? t : ((t=b+det)>eps ? t : 0);
     }
 
-    inline Vector3 Position() const {
+    inline Vector3 Origin() const {
         return Vector3(point.x, point.y, point.z);
     }
 
@@ -69,7 +69,7 @@ struct HyperRay { // For lack of a better name
     }
 
     inline Ray ToRay() const {
-        return Ray(Position(), 
+        return Ray(Origin(), 
                    Direction().Normalize());
     }
 
