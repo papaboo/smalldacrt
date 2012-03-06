@@ -25,28 +25,29 @@ struct Cone {
 
     inline bool DoesIntersect(const Sphere& sphere) const {
 
-        const float sin = std::sin(spreadAngle);
-        const float cosSqr = std::cos(spreadAngle) * cos(spreadAngle);
+        const float sinToAngle = std::sin(spreadAngle);
+        const float cosToAngleSqr = std::cos(spreadAngle) * cos(spreadAngle);
         
-        return DoesIntersect(sphere, sin, cosSqr);
+        return DoesIntersect(sphere, sinToAngle, cosToAngleSqr);
     }
 
     /**
      * http://www.geometrictools.com/Documentation/IntersectionSphereCone.pdf
      */
-    inline bool DoesIntersect(const Sphere& sphere, const float sin, const float cosSqr) const {
+    inline bool DoesIntersect(const Sphere& sphere, const float sinToAngle, 
+                              const float cosToAngleSqr) const {
         // @TODO Handle reflex cones by inversion
         
-        const Vector3 U = apex - dir * (sphere.radius / sin);
+        const Vector3 U = apex - dir * (sphere.radius / sinToAngle);
         Vector3 D = sphere.position - U;
         float dSqr = Dot(D,D);
         float e = Dot(dir, D);
         
-        if (e > 0.0f && e*e >= dSqr * cosSqr) {
+        if (e > 0.0f && e*e >= dSqr * cosToAngleSqr) {
             D = sphere.position - apex;
             dSqr = Dot(D,D);
             e = -Dot(dir, D);
-            const float sinSqr = 1.0f - cosSqr;
+            const float sinSqr = 1.0f - cosToAngleSqr;
             if (e > 0 && e*e >= dSqr * sinSqr)
                 return dSqr <= sphere.radius * sphere.radius;
             else
