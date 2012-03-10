@@ -3,7 +3,9 @@
 
 #include <algorithm>
 #include <math.h>
+#include <string>
 #include <vector>
+#include <cstdio>
 
 #include "AABPenteract.h"
 #include "Cone.h"
@@ -65,6 +67,13 @@ Sphere CalcBoundingSphere(const std::vector<Sphere> spheres,
     }
     
     return Sphere(radius, pos);
+}
+
+void SavePPM(const std::string path, const int width, const int height, const Color* cs) {
+    FILE *f = fopen(path.c_str(), "w");
+    fprintf(f, "P3\n%d %d\n%d\n", width, height, 255);
+    for (int i = 0; i<width*height; i++)
+        fprintf(f,"%d %d %d ", ToByte(cs[i].x), ToByte(cs[i].y), ToByte(cs[i].z));
 }
 
 enum PartitionSide {LOWER = 1, UPPER = 2, BOTH = 3};
