@@ -98,8 +98,11 @@ struct Vec5 {
     Vec5() 
         : x(0), y(0), z(0), u(0), v(0) {}
 
-    Vec5(T x, T y, T z, T u, T v) 
+    Vec5(const T x, const T y, const T z, const T u, const T v) 
         : x(x), y(y), z(z), u(u), v(v) {}
+
+    Vec5(const Vec3<T> xyz, const T u, const T v) 
+        : x(xyz.x), y(xyz.y), z(xyz.z), u(u), v(v) {}
 
     template<class C>
     Vec5(const Vec5<C>& o) 
