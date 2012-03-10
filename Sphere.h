@@ -1,6 +1,8 @@
 #ifndef _SMALL_SPHERE_H_
 #define _SMALL_SPHERE_H_
 
+#include "Vector.h"
+
 enum ReflectionType {DIFFUSE, SPECULAR, REFRACTING};
 
 struct Sphere {
