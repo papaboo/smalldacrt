@@ -3,7 +3,7 @@
 // Kevin Beason.  (But written slightly more human readable)
 
 // Compile ./make smallcone
-// Usage: ./small 16 && xv image.ppm
+// Usage: ./small 4 16 && xv image.ppm
 
 #define PI ((float)3.14159265358979)
 
@@ -169,6 +169,7 @@ struct Fragment {
 //const int WIDTH = 160, HEIGHT = 120;
 //const int WIDTH = 640, HEIGHT = 480;
 const int WIDTH = 320, HEIGHT = 240;
+//const int WIDTH = 1440, HEIGHT = 900;
 int sqrtSamples;
 int samples;
 
@@ -666,68 +667,9 @@ struct SortRayIndicesByAxis {
 };
 
 
-
-int main(int argc, char *argv[]){
-
-    /*
-    {
-        float tMax = 1e30;
-        vector<BoundedRay> rays = vector<BoundedRay>(5);
-        rays[0] = BoundedRay(Ray(Vector3(0,0,-1), Vector3(4,0,-1).Normalize()), 0.0f, tMax);
-        rays[1] = BoundedRay(Ray(Vector3(0,0,-0.5f), Vector3(4,0,-0.5f).Normalize()), 0.0f, tMax);
-        rays[2] = BoundedRay(Ray(Vector3(0,0, 0), Vector3(1,0,0).Normalize()), 0.0f, tMax);
-        rays[3] = BoundedRay(Ray(Vector3(0,0, 0.5f), Vector3(4,0,0.5f).Normalize()), 0.0f, tMax);
-        rays[4] = BoundedRay(Ray(Vector3(0,0, 1.0f), Vector3(4,0,1).Normalize()), 0.0f, tMax);
-        vector<int> rayIndices = vector<int>(5);
-        for (int i = 0; i < rayIndices.size(); ++i) rayIndices[i] = i;
-        vector<Hit> hits = vector<Hit>(rays.size());
-        
-        vector<Sphere> spheres = vector<Sphere>(3);
-        spheres[0] = Sphere(0.5f, Vector3(1,0,0));
-        spheres[1] = Sphere(0.5f, Vector3(4,0,2));
-        spheres[2] = Sphere(0.5f, Vector3(1,0,-1));
-        vector<int> sphereIDs = vector<int>(spheres.size());
-        for (int i = 0; i < sphereIDs.size(); ++i) sphereIDs[i] = i;
-
-        // int offset = Exhaustive(rays, rayIndices, 0, rayIndices.size(),
-        //                         spheres, sphereIDs, 0, sphereIDs.size(),
-        //                         hits);
-        // cout << "offset: " << offset << endl;
-        // for (int i = 0; i < rayIndices.size(); ++i)
-        //     cout << rays[rayIndices[i]].ToString() << " hit " << hits[rayIndices[i]].ToString() << endl;
-
-        const HyperCube cube(posX, rays, rayIndices.begin(), rayIndices.size());
-        cout << "hyber cube: " << cube.ToString() << endl;
-        const Cone cone = cube.ConeBounds();
-        cout << "cone: " << cone.ToString() << endl;
-
-        float min = 4.12f; // Because!
-        float range = 6.0f; // why not!
-
-            int offset = DacrtByDistance(cube, cone, 0, min, range, 
-                                         rays, rayIndices, 0, rayIndices.size(),
-                                         spheres, sphereIDs, 0, sphereIDs.size(),
-                                         hits);
-        cout << "offset: " << offset << endl;
-        for (int i = 0; i < rayIndices.size(); ++i)
-            cout << rays[rayIndices[i]].ToString() << " hit " << hits[rayIndices[i]].ToString() << endl;
-        
-        return 0;
-    }
-    */
-
-    sqrtSamples = argc == 2 ? atoi(argv[1]) : 1; // # samples
-    samples = sqrtSamples * sqrtSamples;
-
+void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
     vector<BoundedRay> rays = CreateRays();
-
-    vector<Sphere> spheres = Scenes::CornellBox();
-
-    Fragment* frags = new Fragment[WIDTH * HEIGHT * samples];
-    vector<Fragment*> rayFrags(WIDTH * HEIGHT * samples);
-    for (int f = 0; f < WIDTH * HEIGHT * samples; ++f)
-        rayFrags[f] = frags + f;
-
+    
     // Create indices and sort them. New indices will be created along with the
     // shading.
     vector<int> rayIndices = vector<int>(rays.size());
@@ -793,20 +735,101 @@ int main(int argc, char *argv[]){
         
         rayIndices = nextRayIndices;
     }
+}
 
-    // *********** CREATE IMAGE ****************
 
-    // Combine colors into image
-    Color* cs = new Color[WIDTH * HEIGHT];
-    for (int x = 0; x < WIDTH; ++x)
-        for (int y = 0; y < HEIGHT; ++y) {
-            Color c = Color(0,0,0);
-            for (int s = 0; s < samples; ++s)
-                c += frags[Index(x,y,s)].emission / samples;
-            cs[x + y * WIDTH] = c;
+int main(int argc, char *argv[]){
+    
+    sqrtSamples = argc >= 2 ? atoi(argv[1]) : 1; // # samples
+    samples = sqrtSamples * sqrtSamples;
+    
+    int iterations = argc >= 3 ? atoi(argv[2]) : 1; // # iterations
+    Color* cs = NULL;
+
+    vector<Sphere> spheres = Scenes::CornellBox();
+
+    Fragment* frags = new Fragment[WIDTH * HEIGHT * samples];
+    vector<Fragment*> rayFrags(WIDTH * HEIGHT * samples);
+    for (int i = 0; i < iterations; ++i) {
+        for (int f = 0; f < WIDTH * HEIGHT * samples; ++f)
+            rayFrags[f] = frags + f;
+        
+        RayTrace(rayFrags, spheres);
+        
+        // *********** CREATE IMAGE ****************
+        
+        // Combine colors into image
+        if (cs == NULL) {
+            cs = new Color[WIDTH * HEIGHT];
+            for (int x = 0; x < WIDTH; ++x)
+                for (int y = 0; y < HEIGHT; ++y) {
+                    Color c = Color(0,0,0);
+                    for (int s = 0; s < samples; ++s)
+                        c += frags[Index(x,y,s)].emission / samples;
+                    cs[x + y * WIDTH] = c;
+                }
+        } else {
+            float mod = float(i) / (i+1.0f);
+            float invMod = 1.0f - mod;
+            cout << "mod: " << mod << ", invMod: " << invMod << endl;
+            for (int x = 0; x < WIDTH; ++x)
+                for (int y = 0; y < HEIGHT; ++y) {
+                    Color c = Color(0,0,0);
+                    for (int s = 0; s < samples; ++s)
+                        c += frags[Index(x,y,s)].emission / samples;
+                    cs[x + y * WIDTH] = cs[x + y * WIDTH] * mod + c * invMod;
+                }
         }
-
+    }   
     SavePPM("image.ppm", WIDTH, HEIGHT, cs);
-
+    
     return 0;
 }
+
+
+    /*
+    {
+        float tMax = 1e30;
+        vector<BoundedRay> rays = vector<BoundedRay>(5);
+        rays[0] = BoundedRay(Ray(Vector3(0,0,-1), Vector3(4,0,-1).Normalize()), 0.0f, tMax);
+        rays[1] = BoundedRay(Ray(Vector3(0,0,-0.5f), Vector3(4,0,-0.5f).Normalize()), 0.0f, tMax);
+        rays[2] = BoundedRay(Ray(Vector3(0,0, 0), Vector3(1,0,0).Normalize()), 0.0f, tMax);
+        rays[3] = BoundedRay(Ray(Vector3(0,0, 0.5f), Vector3(4,0,0.5f).Normalize()), 0.0f, tMax);
+        rays[4] = BoundedRay(Ray(Vector3(0,0, 1.0f), Vector3(4,0,1).Normalize()), 0.0f, tMax);
+        vector<int> rayIndices = vector<int>(5);
+        for (int i = 0; i < rayIndices.size(); ++i) rayIndices[i] = i;
+        vector<Hit> hits = vector<Hit>(rays.size());
+        
+        vector<Sphere> spheres = vector<Sphere>(3);
+        spheres[0] = Sphere(0.5f, Vector3(1,0,0));
+        spheres[1] = Sphere(0.5f, Vector3(4,0,2));
+        spheres[2] = Sphere(0.5f, Vector3(1,0,-1));
+        vector<int> sphereIDs = vector<int>(spheres.size());
+        for (int i = 0; i < sphereIDs.size(); ++i) sphereIDs[i] = i;
+
+        // int offset = Exhaustive(rays, rayIndices, 0, rayIndices.size(),
+        //                         spheres, sphereIDs, 0, sphereIDs.size(),
+        //                         hits);
+        // cout << "offset: " << offset << endl;
+        // for (int i = 0; i < rayIndices.size(); ++i)
+        //     cout << rays[rayIndices[i]].ToString() << " hit " << hits[rayIndices[i]].ToString() << endl;
+
+        const HyperCube cube(posX, rays, rayIndices.begin(), rayIndices.size());
+        cout << "hyber cube: " << cube.ToString() << endl;
+        const Cone cone = cube.ConeBounds();
+        cout << "cone: " << cone.ToString() << endl;
+
+        float min = 4.12f; // Because!
+        float range = 6.0f; // why not!
+
+            int offset = DacrtByDistance(cube, cone, 0, min, range, 
+                                         rays, rayIndices, 0, rayIndices.size(),
+                                         spheres, sphereIDs, 0, sphereIDs.size(),
+                                         hits);
+        cout << "offset: " << offset << endl;
+        for (int i = 0; i < rayIndices.size(); ++i)
+            cout << rays[rayIndices[i]].ToString() << " hit " << hits[rayIndices[i]].ToString() << endl;
+        
+        return 0;
+    }
+    */
