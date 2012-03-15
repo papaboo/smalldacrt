@@ -48,6 +48,11 @@ struct AABB {
                        std::min(max.z, std::max(min.z, p.z)));
     }
 
+    inline float DistanceTo(const Vector3& p) const {
+        Vector3 pSurface = ClosestPointOnSurface(p);
+        return (pSurface - p).Length();
+    }
+
     inline std::string ToString() const {
         std::ostringstream out;
         out << "[min: " << min.ToString() << ", max: " << max.ToString() + "]";
