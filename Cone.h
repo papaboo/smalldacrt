@@ -6,9 +6,9 @@
 #include <string>
 #include <iostream>
 
-#include "Vector.h"
 #include "Ray.h"
 #include "Sphere.h"
+#include "Vector.h"
 
 struct Cone {
 
