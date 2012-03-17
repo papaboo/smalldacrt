@@ -151,14 +151,13 @@ private:
 };
 
 struct Hit {
-    float t;
     int sphereID;
-    Hit() : t(1e+30), sphereID(-1) {}
-    Hit(const float t, const int s) 
-        : t(t), sphereID(s) {}
+    Hit() : sphereID(-1) {}
+    Hit(const int s) 
+        : sphereID(s) {}
     inline std::string ToString() {
         std::ostringstream out;
-        out << "[t: " << t << ", sphereID: " << sphereID << "]";
+        out << "[sphereID: " << sphereID << "]";
         return out.str();
     }
 };
@@ -232,7 +231,7 @@ void SimpleShade(vector<BoundedRay>& rays, const vector<int>& rayIndices,
 
         const Ray ray = rays[rayID].ToRay();
         const Sphere sphere = spheres[sphereID];
-        const Vector3 hitPos = ray.origin + ray.dir * hits[rayID].t;
+        const Vector3 hitPos = ray.origin + ray.dir * rays[rayID].t;
         const Vector3 norm = (hitPos - sphere.position).Normalize();
         const Vector3 nl = Dot(norm, ray.dir) < 0 ? norm : norm * -1;
 
@@ -293,7 +292,7 @@ void Shade(vector<BoundedRay>& rays, vector<int>& rayIndices,
 
         const Ray ray = rays[rayID].ToRay();
         const Sphere sphere = spheres[sphereID];
-        const Vector3 hitPos = ray.origin + ray.dir * hits[rayID].t;
+        const Vector3 hitPos = ray.origin + ray.dir * rays[rayID].t;
         const Vector3 norm = (hitPos - sphere.position).Normalize();
         const Vector3 nl = Dot(norm, ray.dir) < 0 ? norm : norm * -1;
         Color f = sphere.color;
@@ -363,17 +362,20 @@ inline void Exhaustive(vector<BoundedRay> &rays, vector<int> &rayIndices, const 
     for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
         const int rayID = rayIndices[i];
         const Ray charles = rays[rayID].ToRay();
+        float tHit = rays[rayID].t == 0.0f ? 1e30 : rays[rayID].t;
         Hit hit = hits[rayID];
         for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
             ++exhaustives;
             const Sphere sphere = spheres[sphereIDs[s]];
             const float t = sphere.Intersect(charles);
-            if (0 < t && t < hit.t)
-                hit = Hit(t, sphereIDs[s]);
+            if (0 < t && t < tHit) {
+                hit = Hit(sphereIDs[s]);
+                tHit = t;
+            }
         }
         hits[rayID] = hit;
         // @TODO t is stored in both hits and rays. Remove the one from hits?
-        rays[rayID].t = hit.t;
+        rays[rayID].t = tHit;
     }
 }
 
@@ -502,7 +504,7 @@ struct PartitionRaysByDistance {
     bool operator()(int i) { 
         Hit h = hits[i];
         if (h.sphereID != -1) { // Ray has already hit something, 
-            Vector3 pos = rays[i].ToRay().PositionAt(h.t);
+            Vector3 pos = rays[i].Position();
             float dd = (apex - pos).LengthSquared();
             return minDistSquared < dd;
         } else { // Ray hasn't hit anything. Include it if it is below the maxDistance
