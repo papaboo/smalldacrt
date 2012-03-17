@@ -691,7 +691,8 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
             vector<int>::iterator spherePivot = 
                 std::partition(sphereIDs.begin(), sphereIDs.end(), 
                                PartitionSpheresByCone(spheres, hc.ConeBounds(), min, max));
-            min = std::max(min, 0.0f);
+            float dist = (hc.GetAABB().ClosestPointOnSurface(cone.apex) - cone.apex).Length();
+            min = std::max(min, dist);
             int sphereCount = spherePivot - sphereIDs.begin();
             int sphereOffset = 0;
 
