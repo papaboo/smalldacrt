@@ -62,25 +62,25 @@ struct BVHNode {
         return node;
     }
 
-    inline Type GetType() {
+    inline Type GetType() const {
         return (BVHNode::Type)type;
     }
 
-    inline unsigned int GetLeftChild() {
+    inline unsigned int GetLeftChild() const {
         return child;
     }
-    inline unsigned int GetRightChild() {
+    inline unsigned int GetRightChild() const {
         return child+1;
     }
 
-    inline unsigned int GetFirstPrimitive() {
+    inline unsigned int GetFirstPrimitive() const {
         return firstPrimitive;
     }
-    inline unsigned char GetPrimitiveRange() {
+    inline unsigned char GetPrimitiveRange() const {
         return primRange;
     }
 
-    inline std::string ToString() {
+    inline std::string ToString() const {
         std::ostringstream out;
         switch (GetType()){
         case INNER:
@@ -98,7 +98,7 @@ struct BVHNode {
     }
 
 private:
-    inline std::string ReadableType(Type t) {
+    inline std::string ReadableType(Type t) const {
         switch (t) {
         case INNER:
             return "Inner";
@@ -128,31 +128,30 @@ struct PartitionSpheresByZ {
     bool operator()(Sphere s) { return s.position.z < z; }
 };
 
-static int levels = 0;
-
 void CreateBVH(const AABB& parentAABB, const unsigned int nodeIndex, vector<BVHNode>& nodes, 
                std::vector<Sphere>& spheres, const std::vector<Sphere>::iterator sphereBegin, const std::vector<Sphere>::iterator sphereEnd) {
 
-    for (int i = -1; i < levels; ++i) cout << "  ";
-    cout << "Creating node " << nodeIndex << " from spheres [" << sphereBegin - spheres.begin() << ", " << sphereEnd - spheres.begin() << "]" << endl;
+    // static int levels = 0;
+    // for (int i = -1; i < levels; ++i) cout << "  ";
+    // cout << "Creating node " << nodeIndex << " from spheres [" << sphereBegin - spheres.begin() << ", " << sphereEnd - spheres.begin() << "]" << endl;
     
     AABB aabb = CalcAABB(sphereBegin, sphereEnd);
     aabb = Intersection(parentAABB, aabb);
 
     unsigned int range = sphereEnd - sphereBegin;
-    if (range < 16 || levels > 3) {
+    if (range < 16) {
         // Create leaf
-        nodes[nodeIndex] = BVHNode::Leaf(aabb, spheres.begin() - sphereBegin, range);
+        nodes[nodeIndex] = BVHNode::Leaf(aabb, sphereBegin - spheres.begin(), range);
         
-        for (int i = -1; i < levels; ++i) cout << "  ";
-        cout << "Leaf: " << nodes[nodeIndex].ToString() << endl;    
+        // for (int i = -1; i < levels; ++i) cout << "  ";
+        // cout << "Leaf: " << nodes[nodeIndex].ToString() << endl;    
     } else {
         // Create nodes
 
         unsigned int childIndex = nodes.size();
         nodes[nodeIndex] = BVHNode::Inner(aabb, childIndex);
-        for (int i = -1; i < levels; ++i) cout << "  ";
-        cout << "Inner: " << nodes[nodeIndex].ToString() << endl;
+        // for (int i = -1; i < levels; ++i) cout << "  ";
+        // cout << "Inner: " << nodes[nodeIndex].ToString() << endl;
         
         // Find splitting plane
         AABB::Dimension largestDim = aabb.GetLargestDimension();
@@ -189,12 +188,21 @@ void CreateBVH(const AABB& parentAABB, const unsigned int nodeIndex, vector<BVHN
             nodes.push_back(BVHNode::Dummy());
             nodes.push_back(BVHNode::Dummy());
             
-            ++levels;
             // Create left tree;
+            // ++levels;
             CreateBVH(leftAABB, childIndex, nodes, spheres, sphereBegin, spherePivot);
             CreateBVH(rightAABB, childIndex+1, nodes, spheres, spherePivot, sphereEnd);
-            --levels;
+            // --levels;
         }
+    }
+}
+
+void PrintHierarchy(const vector<BVHNode>& nodes, const int id = 0, const int level = 0) {
+    for (int i = 0; i < level; ++i) cout << "  ";
+    cout << nodes[id].ToString() << endl;
+    if (nodes[id].GetType() == BVHNode::INNER) {
+        PrintHierarchy(nodes, nodes[id].GetLeftChild(), level+1);
+        PrintHierarchy(nodes, nodes[id].GetRightChild(), level+1);
     }
 }
 
@@ -205,30 +213,13 @@ int main(int argc, char *argv[]){
     int iterations = argc >= 3 ? atoi(argv[2]) : 1; // # iterations
     Color* cs = NULL;
 
-    {
-        AABB aabb = AABB(Vector3(), Vector3(1,2,3));
-        BVHNode root = BVHNode::Inner(aabb, 0);
-        BVHNode leaf = BVHNode::Leaf(aabb, 0, 4);
-        
-        cout << "root: " << root.ToString() << endl;
-        cout << "leaf: " << leaf.ToString() << endl;
-        cout << "sizeof vector: " << sizeof(Vector3) << endl;
-        cout << "sizeof aabb: " << sizeof(AABB) << endl;
-        cout << "sizeof node: " << sizeof(BVHNode) << endl;
-        cout << "sizeof itr: " << sizeof(std::vector<Sphere>::iterator) << endl;
-    }
-
-    // AABB aabb = AABB(Vector3(1,2,3), Vector3(8,5,3));
-    // AABB::Dimension dim = aabb.GetLargestDimension();
-
     vector<Sphere> spheres = Scenes::CornellBox();
     vector<BVHNode> nodes = vector<BVHNode>(1);
-    cout << "nodes: " << nodes.size() << endl;
     AABB startAABB = AABB(Vector3(-1e30f, -1e30f, -1e30f), Vector3(1e30f, 1e30f, 1e30f));
     CreateBVH(startAABB, 0, nodes, spheres, spheres.begin(), spheres.end());
     cout << "nodes: " << nodes.size() << endl;
-    cout << "root: " << nodes[0].ToString() << endl;    
 
+    PrintHierarchy(nodes);
 
     return 0;
 }
