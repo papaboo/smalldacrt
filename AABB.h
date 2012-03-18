@@ -4,9 +4,14 @@
 #include <algorithm>
 
 struct AABB {
+    enum Dimension {X, Y, Z};
+
     Vector3 min;
     Vector3 max;
-    
+
+    AABB() 
+        : min(Vector3(1e30f, 1e30f, 1e30f)), max(Vector3(-1e30f, -1e30f, -1e30f)) {}
+
     AABB(const Vector3& min, const Vector3& max) 
         : min(min), max(max) {}
 
@@ -51,6 +56,11 @@ struct AABB {
     inline float DistanceTo(const Vector3& p) const {
         Vector3 pSurface = ClosestPointOnSurface(p);
         return (pSurface - p).Length();
+    }
+
+    inline Dimension GetLargestDimension() {
+        Vector3 size = max - min;
+        return (size.x > size.y && size.x > size.z) ? X : (size.y > size.z ? Y : Z);
     }
 
     inline std::string ToString() const {
