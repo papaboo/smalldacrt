@@ -32,7 +32,7 @@ struct AABB {
         return (min + max) * 0.5f;
     }
 
-    inline bool Intersect(const Ray& ray, float &tHit) const {
+    inline bool ClosestIntersection(const Ray& ray, float &tHit) const {
         Vector3 minTs = (min - ray.origin) / ray.dir;
         Vector3 maxTs = (max - ray.origin) / ray.dir;
         
