@@ -206,6 +206,71 @@ void PrintHierarchy(const vector<BVHNode>& nodes, const int id = 0, const int le
     }
 }
 
+struct Fragment {
+    Vector3 emission;
+    int depth;
+    Vector3 f; // What is this I wonder
+    Fragment() : emission(Vector3(0,0,0)), depth(0), f(Vector3(1,1,1)) {}
+};
+
+inline float Exhaustive(const Ray charles, float t, const BVHNode& node, 
+                        const vector<Sphere> spheres, unsigned int &sphereId) {
+
+    for (unsigned int p = node.GetFirstPrimitive(); 
+         p < node.GetFirstPrimitive() + node.GetPrimitiveRange(); ++p) {
+        const Sphere sphere = spheres[p];
+        const float tSphere = sphere.Intersect(charles);
+        if (0 < tSphere && tSphere < t) {
+            sphereId = p;
+            t = tSphere;
+        }
+    }
+    
+    return t;
+}
+    
+/**
+ * Recursively intersects Ray Charles with his node and returns the distance to
+ * the closest intersection and a stores the id of the sphere in sphereId.
+ */
+inline float Intersect(const Ray charles, float t, 
+                       const BVHNode& node, const vector<BVHNode>& nodes, 
+                       const vector<Sphere> spheres, unsigned int &sphereId) {
+    
+    if (node.GetType() == BVHNode::LEAF) {
+        // Intersect leaf
+        return Exhaustive(charles, t, node, spheres, sphereId);
+    } else {
+        // Traverse further
+        const BVHNode left = nodes[node.GetLeftChild()];
+        const float tLeft = left.aabb.Intersect(charles);
+        
+        const BVHNode right = nodes[node.GetRightChild()];
+        const float tRight = right.aabb.Intersect(charles);
+        
+        if (tLeft < tRight) { // Intersect left first
+            if (tLeft < t)
+                t = Intersect(charles, t, left, nodes, spheres, sphereId);
+            if (tRight < t)
+                t = Intersect(charles, t, right, nodes, spheres, sphereId);
+        } else { // Intersect right first
+            if (tRight < t)
+                t = Intersect(charles, t, right, nodes, spheres, sphereId);
+            if (tLeft < t)
+                t = Intersect(charles, t, left, nodes, spheres, sphereId);
+        }
+        
+        return t;
+    }
+}
+
+
+/*
+Color Shade(const Ray charles, const int depth, const vector<BVHNode>& nodes, const vector<Sphere>& spheres) {
+    
+}
+*/
+
 int main(int argc, char *argv[]){
     int sqrtSamples = argc >= 2 ? atoi(argv[1]) : 1; // # samples
     int samples = sqrtSamples * sqrtSamples;
@@ -221,5 +286,14 @@ int main(int argc, char *argv[]){
 
     PrintHierarchy(nodes);
 
+    Ray charles = Ray(Vector3(0,0,0), Vector3(0.2f, 0.2f, 1.0f).Normalize());
+
+    unsigned int sphereId = -1;
+    float t = Intersect(charles, 1e30, 
+                        nodes[0], nodes, 
+                        spheres, sphereId);
+
+    cout << "t: " << t << ", sphereId: " << sphereId << endl;
+    
     return 0;
 }
