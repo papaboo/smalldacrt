@@ -35,8 +35,9 @@ AABB CalcAABB(std::vector<Sphere>::const_iterator begin,
     return res;
 }
 
-AABB CalcAABB(const std::vector<Sphere> spheres, 
-              std::vector<int>::const_iterator begin, const std::vector<int>::const_iterator end) {
+AABB CalcAABB(const std::vector<Sphere>& spheres, 
+              std::vector<int>::const_iterator begin, 
+              const std::vector<int>::const_iterator end) {
     AABB res(spheres[*begin]);
     begin++;
     while (begin != end) {
@@ -46,7 +47,7 @@ AABB CalcAABB(const std::vector<Sphere> spheres,
     return res;
 }
 
-Sphere CalcBoundingSphere(const std::vector<Sphere> spheres, 
+Sphere CalcBoundingSphere(const std::vector<Sphere>& spheres, 
                           const std::vector<int>::const_iterator begin, const std::vector<int>::const_iterator end) {
     Vector3 pos = spheres[*begin].position;
     std::vector<int>::const_iterator itr = begin+1;
@@ -69,6 +70,23 @@ Sphere CalcBoundingSphere(const std::vector<Sphere> spheres,
     return Sphere(radius, pos);
 }
 
+inline std::string BitmaskToString(unsigned int n){
+    std::ostringstream out;
+    out << "[";
+    for (unsigned int i = 0; i < 31; ++i){
+        if (n & 1<<i)
+            out << 1 << ", ";
+        else
+            out << 0 << ", ";
+    }
+    if (n & (unsigned int)1<<31)
+        out << 1 << "]";
+    else
+        out << 0 << "]";
+    
+    return out.str();
+}
+
 void SavePPM(const std::string path, const int width, const int height, const Color* cs) {
     FILE *f = fopen(path.c_str(), "w");
     fprintf(f, "P3\n%d %d\n%d\n", width, height, 255);
@@ -76,6 +94,8 @@ void SavePPM(const std::string path, const int width, const int height, const Co
         fprintf(f,"%d %d %d ", ToByte(cs[i].x), ToByte(cs[i].y), ToByte(cs[i].z));
 }
 
+
+/*
 enum PartitionSide {LOWER = 1, UPPER = 2, BOTH = 3};
 
 template <class T, class Predicate>
@@ -115,5 +135,6 @@ int NonDisjunctPartition(std::vector<T> &vec, int offset, Predicate pred) {
 
     return first;
 }
+*/
 
 #endif
