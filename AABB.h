@@ -32,19 +32,21 @@ struct AABB {
         return (min + max) * 0.5f;
     }
 
-    inline float Intersect(const Ray& ray) const {
+    inline bool Intersect(const Ray& ray, float &tHit) const {
         Vector3 minTs = (min - ray.origin) / ray.dir;
         Vector3 maxTs = (max - ray.origin) / ray.dir;
         
         float nearT = std::min(minTs.x, maxTs.x);
         nearT = std::max(nearT, std::min(minTs.y, maxTs.y));
         nearT = std::max(nearT, std::min(minTs.z, maxTs.z));
-
+        
         float farT = std::max(minTs.x, maxTs.x);
         farT = std::min(farT, std::max(minTs.y, maxTs.y));
         farT = std::min(farT, std::max(minTs.z, maxTs.z));
-        
-        return farT < nearT ? -1e30 : (nearT <= 0 ? farT : nearT);
+     
+        tHit = nearT;
+
+        return nearT <= farT && 0 < farT;
     }
 
     inline Vector3 ClosestPointOnSurface(const Vector3& p) const {
