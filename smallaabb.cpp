@@ -26,6 +26,18 @@ using std::endl;
 #include "Utils.h"
 #include "Scenes.h"
 
+//const int WIDTH = 16, HEIGHT = 16;
+const int WIDTH = 512, HEIGHT = 512;
+int sqrtSamples;
+int samples;
+
+inline int Index(const int x, const int y, const int sub) {
+    return (x + y * WIDTH) * samples + sub;
+}
+inline int Index(const int x, const int y, const int subX, const int subY) {
+    return (x + y * WIDTH) * samples + subX + subY * sqrtSamples;
+}
+
 struct BVHNode {
     enum Type { INNER = 0, LEAF = 1, DUMMY = 2};
 
@@ -135,13 +147,13 @@ void CreateBVH(const AABB& parentAABB, const unsigned int nodeIndex, vector<BVHN
     // for (int i = -1; i < levels; ++i) cout << "  ";
     // cout << "Creating node " << nodeIndex << " from spheres [" << sphereBegin - spheres.begin() << ", " << sphereEnd - spheres.begin() << "]" << endl;
     
-    AABB aabb = CalcAABB(sphereBegin, sphereEnd);
-    aabb = Intersection(parentAABB, aabb);
+    AABB nodeAABB = CalcAABB(sphereBegin, sphereEnd);
+    AABB aabb = Intersection(parentAABB, nodeAABB);
 
     unsigned int range = sphereEnd - sphereBegin;
     if (range < 16) {
         // Create leaf
-        nodes[nodeIndex] = BVHNode::Leaf(aabb, sphereBegin - spheres.begin(), range);
+        nodes[nodeIndex] = BVHNode::Leaf(nodeAABB, sphereBegin - spheres.begin(), range);
         
         // for (int i = -1; i < levels; ++i) cout << "  ";
         // cout << "Leaf: " << nodes[nodeIndex].ToString() << endl;    
@@ -149,7 +161,7 @@ void CreateBVH(const AABB& parentAABB, const unsigned int nodeIndex, vector<BVHN
         // Create nodes
 
         unsigned int childIndex = nodes.size();
-        nodes[nodeIndex] = BVHNode::Inner(aabb, childIndex);
+        nodes[nodeIndex] = BVHNode::Inner(nodeAABB, childIndex);
         // for (int i = -1; i < levels; ++i) cout << "  ";
         // cout << "Inner: " << nodes[nodeIndex].ToString() << endl;
         
@@ -206,26 +218,52 @@ void PrintHierarchy(const vector<BVHNode>& nodes, const int id = 0, const int le
     }
 }
 
-struct Fragment {
-    Vector3 emission;
-    int depth;
-    Vector3 f; // What is this I wonder
-    Fragment() : emission(Vector3(0,0,0)), depth(0), f(Vector3(1,1,1)) {}
-};
+vector<Ray> CreateRays() {
+    Ray cam(Vector3(50,52,295.6), Vector3(0,-0.042612,-1).Normalize()); // cam pos, dir
+    Vector3 cx = Vector3(WIDTH * 0.5135 / HEIGHT, 0, 0);
+    Vector3 cy = (cx.Cross(cam.dir)).Normalize() * 0.5135;
+
+    vector<Ray> rays = vector<Ray>(WIDTH * HEIGHT * samples);
+    for (int y = 0; y < HEIGHT; y++){
+        unsigned short Xi[3] = {0, 0, y*y*y};
+        for (unsigned short x = 0; x < WIDTH; x++) {
+            
+            // subpixel grid
+            for (int subY = 0; subY < sqrtSamples; ++subY)
+                for (int subX = 0; subX < sqrtSamples; ++subX) {
+                    // Samples
+                    double r1 = 2 * erand48(Xi);
+                    float dx = r1 < 1 ? sqrt(r1) - 1 : 1 - sqrt(2 - r1);
+                    double r2 = 2 * erand48(Xi);
+                    float dy = r2 < 1 ? sqrt(r2) - 1: 1 - sqrt(2 - r2);
+                    
+                    Vector3 rayDir = cx * (((subX + 0.5 + dx) / sqrtSamples + x) / WIDTH - 0.5) 
+                        + cy * (((subY + 0.5 + dy) / sqrtSamples + y) / HEIGHT - 0.5) + cam.dir;
+                    rays[Index(x,y,subX,subY)] = Ray(cam.origin + rayDir * 140, rayDir.Normalize());
+                }
+        }
+    }
+    
+    return rays;
+}
 
 inline float Exhaustive(const Ray charles, float t, const BVHNode& node, 
                         const vector<Sphere> spheres, unsigned int &sphereId) {
 
+    // cout << "Exhaustive: " << t << ", " << node.ToString() << endl;
+    
     for (unsigned int p = node.GetFirstPrimitive(); 
          p < node.GetFirstPrimitive() + node.GetPrimitiveRange(); ++p) {
+
         const Sphere sphere = spheres[p];
         const float tSphere = sphere.Intersect(charles);
         if (0 < tSphere && tSphere < t) {
             sphereId = p;
             t = tSphere;
+            // cout << "Hit: " << sphereId << " x " << t << endl;
         }
     }
-    
+
     return t;
 }
     
@@ -236,18 +274,24 @@ inline float Exhaustive(const Ray charles, float t, const BVHNode& node,
 inline float Intersect(const Ray charles, float t, 
                        const BVHNode& node, const vector<BVHNode>& nodes, 
                        const vector<Sphere> spheres, unsigned int &sphereId) {
-    
+
     if (node.GetType() == BVHNode::LEAF) {
         // Intersect leaf
         return Exhaustive(charles, t, node, spheres, sphereId);
     } else {
         // Traverse further
         const BVHNode left = nodes[node.GetLeftChild()];
-        const float tLeft = left.aabb.Intersect(charles);
+        float tLeft;
+        if (!left.aabb.ClosestIntersection(charles, tLeft)) tLeft = -1.0f;
         
         const BVHNode right = nodes[node.GetRightChild()];
-        const float tRight = right.aabb.Intersect(charles);
+        float tRight;
+        if (!right.aabb.ClosestIntersection(charles, tRight)) tRight = -1.0f;
         
+        // cout << "Intersect: " << t << ", " << node.ToString() << endl;
+        // cout << "  tLeft: " << left.aabb.ToString() << " -> " << tLeft << endl;
+        // cout << "  tRight: " << right.aabb.ToString() << " -> " << tRight << endl;
+    
         if (tLeft < tRight) { // Intersect left first
             if (tLeft < t)
                 t = Intersect(charles, t, left, nodes, spheres, sphereId);
@@ -264,6 +308,12 @@ inline float Intersect(const Ray charles, float t,
     }
 }
 
+inline bool Intersect(const Ray charles, const vector<BVHNode>& nodes, 
+                      const vector<Sphere> spheres, unsigned int &sphereId) {
+    sphereId = -1;
+    Intersect(charles, 1e30, nodes[0], nodes, spheres, sphereId);
+    return sphereId == -1;
+}
 
 /*
 Color Shade(const Ray charles, const int depth, const vector<BVHNode>& nodes, const vector<Sphere>& spheres) {
@@ -272,28 +322,54 @@ Color Shade(const Ray charles, const int depth, const vector<BVHNode>& nodes, co
 */
 
 int main(int argc, char *argv[]){
-    int sqrtSamples = argc >= 2 ? atoi(argv[1]) : 1; // # samples
-    int samples = sqrtSamples * sqrtSamples;
+    sqrtSamples = argc >= 2 ? atoi(argv[1]) : 1; // # samples
+    samples = sqrtSamples * sqrtSamples;
     
     int iterations = argc >= 3 ? atoi(argv[2]) : 1; // # iterations
-    Color* cs = NULL;
 
     vector<Sphere> spheres = Scenes::CornellBox();
+    vector<Ray> rays = CreateRays();
+    
     vector<BVHNode> nodes = vector<BVHNode>(1);
     AABB startAABB = AABB(Vector3(-1e30f, -1e30f, -1e30f), Vector3(1e30f, 1e30f, 1e30f));
     CreateBVH(startAABB, 0, nodes, spheres, spheres.begin(), spheres.end());
-    cout << "nodes: " << nodes.size() << endl;
 
     PrintHierarchy(nodes);
 
-    Ray charles = Ray(Vector3(0,0,0), Vector3(0.2f, 0.2f, 1.0f).Normalize());
+    // unsigned int sId;
+    // Intersect(rays[140], nodes, spheres, sId);
+    // cout << "Hit : " << sId << ": " << spheres[sId].ToString() << endl;
 
-    unsigned int sphereId = -1;
-    float t = Intersect(charles, 1e30, 
-                        nodes[0], nodes, 
-                        spheres, sphereId);
+    // return 0;
 
-    cout << "t: " << t << ", sphereId: " << sphereId << endl;
+
+    unsigned int* sphereIds = new unsigned int[rays.size()];
+    for (int r = 0; r < rays.size(); ++r) {
+        fprintf(stderr,"\rRendering %i/%lu", r, rays.size());
+        unsigned int sId = -1;
+        Intersect(rays[r], nodes, spheres, sId);
+        sphereIds[r] = sId;
+    }
+    cout << endl;
+    
+    // ASCII color art
+    // for (int y = 0; y < HEIGHT; ++y) {
+    //     for (int x = 0; x < WIDTH; ++x)
+    //         cout << sphereIds[Index(x,y,0)] << " ";
+    //     cout << endl;
+    // }
+
+    Color* cs = new Color[WIDTH * HEIGHT];
+    for (int x = 0; x < WIDTH; ++x)
+        for (int y = 0; y < HEIGHT; ++y) {
+            Color c = Color(0,0,0);
+            for (int s = 0; s < samples; ++s)
+                //c += frags[Index(x,y,s)].emission;
+                c += spheres[sphereIds[Index(x,y,s)]].color;
+            cs[x + y * WIDTH] = c / samples;
+        }
+
+    SavePPM("aabbimage.ppm", WIDTH, HEIGHT, cs);
     
     return 0;
 }
