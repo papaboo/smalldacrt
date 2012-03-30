@@ -235,6 +235,12 @@ void SimpleShade(vector<BoundedRay>& rays, const vector<int>& rayIndices,
         const Vector3 norm = (hitPos - sphere.position).Normalize();
         const Vector3 nl = Dot(norm, ray.dir) < 0 ? norm : norm * -1;
 
+        if (++(frags[rayID]->depth) > 5) {
+            float mod = 0.5f + 0.5f * nl.y;
+            frags[rayID]->emission = sphere.color * mod;
+            continue;
+        }
+
         switch(sphere.reflection) {
         case SPECULAR: {
             Vector3 reflect = ray.dir - nl * 2 * Dot(nl, ray.dir);
@@ -298,17 +304,18 @@ void Shade(vector<BoundedRay>& rays, vector<int>& rayIndices,
         Color f = sphere.color;
         const float maxRefl = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z;
         if (++(frags[rayID]->depth) > 5)
-            if (Rand01() < maxRefl) {
+            if (Rand01() < maxRefl)
+            //if (false)
                 f = f * (1 / maxRefl); 
-            } else {
+            else {
                 frags[rayID]->emission += frags[rayID]->f * sphere.emission;
                 continue;
             }
         
-        Vector3 newRayDir;
         switch(sphere.reflection) {
         case SPECULAR: {
-            newRayDir = ray.dir - nl * 2 * Dot(nl, ray.dir);
+            Vector3 newRayDir = ray.dir - nl * 2 * Dot(nl, ray.dir);
+            rays[rayID] = BoundedRay(HyperRay(Ray(hitPos + nl * 0.02f, newRayDir)));
             break;
         }
         case REFRACTING: {
@@ -321,17 +328,17 @@ void Shade(vector<BoundedRay>& rays, vector<int>& rayIndices,
             float cos2t = 1.0f - nnt * nnt * (1.0f - ddn * ddn);
             // If total internal reflection
             if (cos2t < 0.0f) {
-                newRayDir = reflect;
+                rays[rayID] = BoundedRay(HyperRay(Ray(hitPos + nl * 0.02f, reflect)));
             } else {
                             Vector3 tDir = (ray.dir * nnt - norm * ((into?1.0f:-1.0f) * (ddn*nnt+sqrt(cos2t)))).Normalize();
                 float a=nt-nc, b=nt+nc, R0=a*a/(b*b), c = 1-(into?-ddn : Dot(tDir, norm));
                 float Re=R0+(1-R0)*c*c*c*c*c,Tr=1-Re;
                 float P=0.25f + 0.5f * Re; 
                 float RP = Re / P, TP = Tr / (1.0f-P);
-                if (Rand01() < P) // reflection
-                    newRayDir = reflect;
-                else 
-                    newRayDir = tDir;
+                if (Rand01() < P)// reflection
+                    rays[rayID] = BoundedRay(HyperRay(Ray(hitPos + nl * 0.02f, reflect)));
+                else
+                    rays[rayID] = BoundedRay(HyperRay(Ray(hitPos + nl * -0.02f, tDir)));
             }
             break;
         }
@@ -344,11 +351,11 @@ void Shade(vector<BoundedRay>& rays, vector<int>& rayIndices,
             Vector3 w = nl; 
             Vector3 u = ((fabsf(w.x) > 0.1 ? Vector3(0,1,0) : Vector3(1,0,0)).Cross(w)).Normalize();
             Vector3 v = w.Cross(u);
-            newRayDir = (u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrtf(1-r2)).Normalize();
+            Vector3 newRayDir = (u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrtf(1-r2)).Normalize();
+            rays[rayID] = BoundedRay(HyperRay(Ray(hitPos + nl * 0.02f, newRayDir)));
             break;
         }
 
-        rays[rayID] = BoundedRay(HyperRay(Ray(hitPos + newRayDir * 0.05f, newRayDir)));
         frags[rayID]->emission += frags[rayID]->f * sphere.emission;
         frags[rayID]->f = frags[rayID]->f * f;
         nextIndices[nextOffset++] = rayID;
@@ -359,23 +366,47 @@ inline void Exhaustive(vector<BoundedRay> &rays, vector<int> &rayIndices, const 
                        const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
                        vector<Hit> &hits) {
 
-    for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
-        const int rayID = rayIndices[i];
-        const Ray charles = rays[rayID].ToRay();
-        float tHit = rays[rayID].t == 0.0f ? 1e30 : rays[rayID].t;
-        Hit hit = hits[rayID];
-        for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
-            ++exhaustives;
-            const Sphere sphere = spheres[sphereIDs[s]];
-            const float t = sphere.Intersect(charles);
-            if (0 < t && t < tHit) {
-                hit = Hit(sphereIDs[s]);
-                tHit = t;
+    if (sphereCount > 4) {
+        AABB aabb = CalcAABB(spheres, sphereIDs.begin() + sphereOffset, sphereIDs.begin() + sphereOffset + sphereCount);
+        
+        for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
+            const int rayID = rayIndices[i];
+            const Ray charles = rays[rayID].ToRay();
+            float tmp;
+            if (aabb.ClosestIntersection(charles, tmp)) {
+                float tHit = rays[rayID].t == 0.0f ? 1e30 : rays[rayID].t;
+                Hit hit = hits[rayID];
+                for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
+                    ++exhaustives;
+                    const Sphere sphere = spheres[sphereIDs[s]];
+                    const float t = sphere.Intersect(charles);
+                    if (0 < t && t < tHit) {
+                        hit = Hit(sphereIDs[s]);
+                        tHit = t;
+                    }
+                }
+                hits[rayID] = hit;
+                rays[rayID].t = tHit;
             }
         }
-        hits[rayID] = hit;
-        // @TODO t is stored in both hits and rays. Remove the one from hits?
-        rays[rayID].t = tHit;
+    } else {
+        for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
+            const int rayID = rayIndices[i];
+            const Ray charles = rays[rayID].ToRay();
+            float tHit = rays[rayID].t == 0.0f ? 1e30 : rays[rayID].t;
+            Hit hit = hits[rayID];
+            for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
+                ++exhaustives;
+                const Sphere sphere = spheres[sphereIDs[s]];
+                const float t = sphere.Intersect(charles);
+                if (0 < t && t < tHit) {
+                    hit = Hit(sphereIDs[s]);
+                    tHit = t;
+                }
+            }
+            hits[rayID] = hit;
+            rays[rayID].t = tHit;
+        }
     }
 }
 
@@ -413,7 +444,7 @@ struct PartitionSpheresByCone {
         if (cone.DoesIntersect(spheres[i], sinAngle, cosAngleSqr)) {
             float dist = (cone.apex - spheres[i].position).Length();
             min = std::min(min, dist - spheres[i].radius);
-            max = std::max(max, dist + spheres[i].radius);
+            max = std::max(max, dist - spheres[i].radius);
             return true;
         } else
             return false;
@@ -438,6 +469,7 @@ inline void DacrtBySpread(const HyperCube& cube, const Cone& cone, const int lev
                        PartitionRaysByV(rays, cube.cube.v.Middle()));
     int newRayCount = rayPivot - begin;
     
+
     // Cube and cone for the lower side
     HyperCube lowerCube = HyperCube(cube.axis, rays, begin, newRayCount);
     Cone lowerCone = lowerCube.ConeBounds();
@@ -513,20 +545,6 @@ struct PartitionRaysByDistance {
         }
     }
 };
-
-/*
-struct CalcTMax {
-    const Cone cone;
-    vector<BoundedRay>& rays;
-    const float radius;
-    CalcTMax(const Cone& cone, vector<BoundedRay>& rays, const float radius)
-        : cone(cone), rays(rays), radius(radius) {}
-    void operator() (const int i) {
-        const Ray charles = rays[i].ToRay();
-        rays[i].tMax = SimpleIntersect(cone, charles, radius);
-    }
-};
-*/
 
 struct PartitionSpheresByDistance {
     const Vector3 apex;
@@ -628,7 +646,7 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
         }
         
         // @TODO Better decision method
-        if (level % 3 == 0)
+        if (level % 3 == -1)
             DacrtByDistance(cube, cone, level, coneMin, coneRange,
                             rays, rayIDs, rayOffset, rayCount,
                             spheres, sphereIDs, sphereOffset, sphereCount,
@@ -733,6 +751,8 @@ int main(int argc, char *argv[]){
     vector<Fragment*> rayFrags(WIDTH * HEIGHT * samples);
     for (int i = 0; i < iterations; ++i) {
         for (int f = 0; f < WIDTH * HEIGHT * samples; ++f)
+            frags[f] = Fragment();
+        for (int f = 0; f < WIDTH * HEIGHT * samples; ++f)
             rayFrags[f] = frags + f;
         
         RayTrace(rayFrags, spheres);
@@ -762,55 +782,8 @@ int main(int argc, char *argv[]){
                 }
         }
     }   
-    SavePPM("image.ppm", WIDTH, HEIGHT, cs);
+
+    SavePPM("coneimage.ppm", WIDTH, HEIGHT, cs);
     
     return 0;
 }
-
-
-    /*
-    {
-        float tMax = 1e30;
-        vector<BoundedRay> rays = vector<BoundedRay>(5);
-        rays[0] = BoundedRay(Ray(Vector3(0,0,-1), Vector3(4,0,-1).Normalize()), 0.0f, tMax);
-        rays[1] = BoundedRay(Ray(Vector3(0,0,-0.5f), Vector3(4,0,-0.5f).Normalize()), 0.0f, tMax);
-        rays[2] = BoundedRay(Ray(Vector3(0,0, 0), Vector3(1,0,0).Normalize()), 0.0f, tMax);
-        rays[3] = BoundedRay(Ray(Vector3(0,0, 0.5f), Vector3(4,0,0.5f).Normalize()), 0.0f, tMax);
-        rays[4] = BoundedRay(Ray(Vector3(0,0, 1.0f), Vector3(4,0,1).Normalize()), 0.0f, tMax);
-        vector<int> rayIndices = vector<int>(5);
-        for (int i = 0; i < rayIndices.size(); ++i) rayIndices[i] = i;
-        vector<Hit> hits = vector<Hit>(rays.size());
-        
-        vector<Sphere> spheres = vector<Sphere>(3);
-        spheres[0] = Sphere(0.5f, Vector3(1,0,0));
-        spheres[1] = Sphere(0.5f, Vector3(4,0,2));
-        spheres[2] = Sphere(0.5f, Vector3(1,0,-1));
-        vector<int> sphereIDs = vector<int>(spheres.size());
-        for (int i = 0; i < sphereIDs.size(); ++i) sphereIDs[i] = i;
-
-        // int offset = Exhaustive(rays, rayIndices, 0, rayIndices.size(),
-        //                         spheres, sphereIDs, 0, sphereIDs.size(),
-        //                         hits);
-        // cout << "offset: " << offset << endl;
-        // for (int i = 0; i < rayIndices.size(); ++i)
-        //     cout << rays[rayIndices[i]].ToString() << " hit " << hits[rayIndices[i]].ToString() << endl;
-
-        const HyperCube cube(posX, rays, rayIndices.begin(), rayIndices.size());
-        cout << "hyber cube: " << cube.ToString() << endl;
-        const Cone cone = cube.ConeBounds();
-        cout << "cone: " << cone.ToString() << endl;
-
-        float min = 4.12f; // Because!
-        float range = 6.0f; // why not!
-
-            int offset = DacrtByDistance(cube, cone, 0, min, range, 
-                                         rays, rayIndices, 0, rayIndices.size(),
-                                         spheres, sphereIDs, 0, sphereIDs.size(),
-                                         hits);
-        cout << "offset: " << offset << endl;
-        for (int i = 0; i < rayIndices.size(); ++i)
-            cout << rays[rayIndices[i]].ToString() << " hit " << hits[rayIndices[i]].ToString() << endl;
-        
-        return 0;
-    }
-    */
