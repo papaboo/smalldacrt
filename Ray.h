@@ -8,7 +8,7 @@ struct Ray {
     Ray() : origin(Vector3()), dir(Vector3()) {}
 
     /**
-     * Contrsut a ray from it's origin and direction. Direction is assumed to be
+     * Construct a ray from it's origin and direction. Direction is assumed to be
      * normalized.
      */
     Ray(const Vector3& o, const Vector3& d) 
