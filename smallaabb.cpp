@@ -26,7 +26,7 @@ using std::endl;
 #include "Utils.h"
 #include "Scenes.h"
 
-//const int WIDTH = 16, HEIGHT = 16;
+//const int WIDTH = 32, HEIGHT = 32;
 const int WIDTH = 512, HEIGHT = 512;
 int sqrtSamples;
 int samples;
@@ -250,8 +250,6 @@ vector<Ray> CreateRays() {
 inline float Exhaustive(const Ray charles, float t, const BVHNode& node, 
                         const vector<Sphere> spheres, unsigned int &sphereId) {
 
-    // cout << "Exhaustive: " << t << ", " << node.ToString() << endl;
-    
     for (unsigned int p = node.GetFirstPrimitive(); 
          p < node.GetFirstPrimitive() + node.GetPrimitiveRange(); ++p) {
 
@@ -260,7 +258,6 @@ inline float Exhaustive(const Ray charles, float t, const BVHNode& node,
         if (0 < tSphere && tSphere < t) {
             sphereId = p;
             t = tSphere;
-            // cout << "Hit: " << sphereId << " x " << t << endl;
         }
     }
 
@@ -287,10 +284,6 @@ inline float Intersect(const Ray charles, float t,
         const BVHNode right = nodes[node.GetRightChild()];
         float tRight;
         if (!right.aabb.ClosestIntersection(charles, tRight)) tRight = -1.0f;
-        
-        // cout << "Intersect: " << t << ", " << node.ToString() << endl;
-        // cout << "  tLeft: " << left.aabb.ToString() << " -> " << tLeft << endl;
-        // cout << "  tRight: " << right.aabb.ToString() << " -> " << tRight << endl;
     
         if (tLeft < tRight) { // Intersect left first
             if (tLeft < t)
@@ -308,18 +301,44 @@ inline float Intersect(const Ray charles, float t,
     }
 }
 
-inline bool Intersect(const Ray charles, const vector<BVHNode>& nodes, 
+inline float Intersect(const Ray charles, const vector<BVHNode>& nodes, 
                       const vector<Sphere> spheres, unsigned int &sphereId) {
     sphereId = -1;
-    Intersect(charles, 1e30, nodes[0], nodes, spheres, sphereId);
-    return sphereId == -1;
+    float t = Intersect(charles, 1e30, nodes[0], nodes, spheres, sphereId);
+    return sphereId == -1 ? -1.0f : t;
 }
 
-/*
-Color Shade(const Ray charles, const int depth, const vector<BVHNode>& nodes, const vector<Sphere>& spheres) {
+Color Shade(const Ray ray, const int depth, const vector<BVHNode>& nodes, const vector<Sphere>& spheres) {
+    // id of intersected object
+    unsigned int sphereId = 0;
     
+    const float t = Intersect(ray, nodes, spheres, sphereId);
+    if (t <= 0.0f)
+        return Color(0,0,0); // Background color
+
+    const Sphere& sphere = spheres[sphereId];
+
+    const Vector3 hitPos = ray.origin + ray.dir * t;
+    const Vector3 norm = (hitPos - sphere.position).Normalize();
+    const Vector3 nl = Dot(norm, ray.dir) < 0 ? norm : norm * -1;
+
+    Color f = sphere.color;
+    const float maxRefl = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z;
+    if (depth > 5) // if depth above 5, then terminate
+        return sphere.emission;
+
+    // All objects are diffuse
+    const float r1 = 2 * M_PI * Rand01();
+    const float r2 = Rand01(); 
+    const float r2s = sqrtf(r2);
+    // Normal space
+    const Vector3 w = nl; 
+    const Vector3 u = ((fabsf(w.x) > 0.1f ? Vector3(0,1,0) : Vector3(1,0,0)).Cross(w)).Normalize();
+    const Vector3 v = w.Cross(u);
+    const Vector3 newRayDir = (u * cos(r1) * r2s + v * sin(r1) * r2s + w * sqrtf(1-r2)).Normalize();
+    const Vector3 newPos = hitPos + nl * 0.02f;
+    return sphere.emission + f * Shade(Ray(newPos, newRayDir), depth+1, nodes, spheres);
 }
-*/
 
 int main(int argc, char *argv[]){
     sqrtSamples = argc >= 2 ? atoi(argv[1]) : 1; // # samples
@@ -336,19 +355,10 @@ int main(int argc, char *argv[]){
 
     PrintHierarchy(nodes);
 
-    // unsigned int sId;
-    // Intersect(rays[140], nodes, spheres, sId);
-    // cout << "Hit : " << sId << ": " << spheres[sId].ToString() << endl;
-
-    // return 0;
-
-
-    unsigned int* sphereIds = new unsigned int[rays.size()];
+    Color* frags = new Color[rays.size()];
     for (int r = 0; r < rays.size(); ++r) {
-        fprintf(stderr,"\rRendering %i/%lu", r, rays.size());
-        unsigned int sId = -1;
-        Intersect(rays[r], nodes, spheres, sId);
-        sphereIds[r] = sId;
+        if ((r % 1024) == 0) fprintf(stderr,"\rRendering %i/%lu", r, rays.size());
+        frags[r] = Shade(rays[r], 0, nodes, spheres);
     }
     cout << endl;
     
@@ -364,8 +374,7 @@ int main(int argc, char *argv[]){
         for (int y = 0; y < HEIGHT; ++y) {
             Color c = Color(0,0,0);
             for (int s = 0; s < samples; ++s)
-                //c += frags[Index(x,y,s)].emission;
-                c += spheres[sphereIds[Index(x,y,s)]].color;
+                c += frags[Index(x,y,s)];
             cs[x + y * WIDTH] = c / samples;
         }
 
