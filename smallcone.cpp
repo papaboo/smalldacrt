@@ -415,22 +415,6 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
            vector<Hit> &hits);
 
-struct PartitionRaysByU {
-    const vector<BoundedRay>& rays;
-    const float value;
-    PartitionRaysByU(const vector<BoundedRay>& r, const float v)
-        : rays(r), value(v) {}
-    bool operator()(int i) { return rays[i].hyperRay.point.u <= value; }
-};
-
-struct PartitionRaysByV {
-    const vector<BoundedRay>& rays;
-    const float value;
-    PartitionRaysByV(const vector<BoundedRay>& r, const float v)
-        : rays(r), value(v) {}
-    bool operator()(int i) { return rays[i].hyperRay.point.v <= value; }
-};
-
 struct PartitionSpheresByCone {
     const vector<Sphere>& spheres;
     const Cone cone;
@@ -451,22 +435,82 @@ struct PartitionSpheresByCone {
     }
 };
 
-inline void DacrtBySpread(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
-                          vector<BoundedRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
-                          const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
-                          vector<Hit> &hits) {
+
+struct PartitionRaysByX {
+    const vector<BoundedRay>& rays;
+    const float value;
+    PartitionRaysByX(const vector<BoundedRay>& r, const float v)
+        : rays(r), value(v) {}
+    bool operator()(int i) { return rays[i].hyperRay.point.x <= value; }
+};
+struct PartitionRaysByY {
+    const vector<BoundedRay>& rays;
+    const float value;
+    PartitionRaysByY(const vector<BoundedRay>& r, const float v)
+        : rays(r), value(v) {}
+    bool operator()(int i) { return rays[i].hyperRay.point.y <= value; }
+};
+struct PartitionRaysByZ {
+    const vector<BoundedRay>& rays;
+    const float value;
+    PartitionRaysByZ(const vector<BoundedRay>& r, const float v)
+        : rays(r), value(v) {}
+    bool operator()(int i) { return rays[i].hyperRay.point.z <= value; }
+};
+struct PartitionRaysByU {
+    const vector<BoundedRay>& rays;
+    const float value;
+    PartitionRaysByU(const vector<BoundedRay>& r, const float v)
+        : rays(r), value(v) {}
+    bool operator()(int i) { return rays[i].hyperRay.point.u <= value; }
+};
+struct PartitionRaysByV {
+    const vector<BoundedRay>& rays;
+    const float value;
+    PartitionRaysByV(const vector<BoundedRay>& r, const float v)
+        : rays(r), value(v) {}
+    bool operator()(int i) { return rays[i].hyperRay.point.v <= value; }
+};
+
+
+/**
+ * A simple implementation based on **** without caching.
+ */
+inline void DacrtByRays(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
+                       vector<BoundedRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
+                       const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
+                       vector<Hit> &hits) {
 
     ++spreadDacrt;
     
-    // Split the hypercube along either u or v and partition the ray ids
+    // Split the hypercube along the largest dimension and partition the ray ids
+    float xRange = cube.cube.x.Range();
+    float yRange = cube.cube.y.Range();
+    float zRange = cube.cube.z.Range();
     float uRange = cube.cube.u.Range();
     float vRange = cube.cube.v.Range();
+    float maxSpread = std::max(uRange, vRange);
+    float maxPos = std::max(xRange, std::max(yRange, zRange));
+
     vector<int>::iterator begin = rayIDs.begin() + rayOffset;
-    vector<int>::iterator rayPivot = uRange > vRange ?
-        std::partition(begin, begin + rayCount,
-                       PartitionRaysByU(rays, cube.cube.u.Middle())) :
-        std::partition(begin, begin + rayCount,
-                       PartitionRaysByV(rays, cube.cube.v.Middle()));
+    vector<int>::iterator rayPivot;
+    if (maxSpread > maxPos) { // Split along the ray directions
+        rayPivot = uRange > vRange ?
+            std::partition(begin, begin + rayCount,
+                           PartitionRaysByU(rays, cube.cube.u.Middle())) :
+            std::partition(begin, begin + rayCount,
+                           PartitionRaysByV(rays, cube.cube.v.Middle()));
+    } else  { // Split along the ray positions
+        rayPivot = 
+            xRange > yRange && xRange > zRange ?
+            std::partition(begin, begin + rayCount,
+                           PartitionRaysByX(rays, cube.cube.x.Middle())) :
+            (yRange > zRange ? 
+             std::partition(begin, begin + rayCount,
+                            PartitionRaysByY(rays, cube.cube.y.Middle())) :
+             std::partition(begin, begin + rayCount,
+                            PartitionRaysByZ(rays, cube.cube.z.Middle())));
+    }
     int newRayCount = rayPivot - begin;
     
 
@@ -520,6 +564,10 @@ inline void DacrtBySpread(const HyperCube& cube, const Cone& cone, const int lev
           spheres, sphereIDs, sphereOffset, newSphereCount, 
           hits);
 }
+
+
+
+
 
 /**
  * Partition rays by their distance to the apex.
@@ -652,10 +700,10 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
                             spheres, sphereIDs, sphereOffset, sphereCount,
                             hits);
         else
-            DacrtBySpread(cube, cone, level, coneMin, coneRange,
-                          rays, rayIDs, rayOffset, rayCount,
-                          spheres, sphereIDs, sphereOffset, sphereCount,
-                          hits);
+            DacrtByRays(cube, cone, level, coneMin, coneRange,
+                        rays, rayIDs, rayOffset, rayCount,
+                        spheres, sphereIDs, sphereOffset, sphereCount,
+                        hits);
     }
 }
 
