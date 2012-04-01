@@ -142,28 +142,19 @@ struct PartitionSpheresByZ {
 
 void CreateBVH(const AABB& parentAABB, const unsigned int nodeIndex, vector<BVHNode>& nodes, 
                std::vector<Sphere>& spheres, const std::vector<Sphere>::iterator sphereBegin, const std::vector<Sphere>::iterator sphereEnd) {
-
-    // static int levels = 0;
-    // for (int i = -1; i < levels; ++i) cout << "  ";
-    // cout << "Creating node " << nodeIndex << " from spheres [" << sphereBegin - spheres.begin() << ", " << sphereEnd - spheres.begin() << "]" << endl;
     
     AABB nodeAABB = CalcAABB(sphereBegin, sphereEnd);
     AABB aabb = Intersection(parentAABB, nodeAABB);
 
     unsigned int range = sphereEnd - sphereBegin;
-    if (range < 16) {
+    if (range < 16)
         // Create leaf
         nodes[nodeIndex] = BVHNode::Leaf(nodeAABB, sphereBegin - spheres.begin(), range);
-        
-        // for (int i = -1; i < levels; ++i) cout << "  ";
-        // cout << "Leaf: " << nodes[nodeIndex].ToString() << endl;    
-    } else {
+    else {
         // Create nodes
 
         unsigned int childIndex = nodes.size();
         nodes[nodeIndex] = BVHNode::Inner(nodeAABB, childIndex);
-        // for (int i = -1; i < levels; ++i) cout << "  ";
-        // cout << "Inner: " << nodes[nodeIndex].ToString() << endl;
         
         // Find splitting plane
         AABB::Dimension largestDim = aabb.GetLargestDimension();
@@ -201,10 +192,8 @@ void CreateBVH(const AABB& parentAABB, const unsigned int nodeIndex, vector<BVHN
             nodes.push_back(BVHNode::Dummy());
             
             // Create left tree;
-            // ++levels;
             CreateBVH(leftAABB, childIndex, nodes, spheres, sphereBegin, spherePivot);
             CreateBVH(rightAABB, childIndex+1, nodes, spheres, spherePivot, sphereEnd);
-            // --levels;
         }
     }
 }
@@ -263,6 +252,9 @@ inline float Exhaustive(const Ray charles, float t, const BVHNode& node,
 
     return t;
 }
+
+static int levels = 0;
+
     
 /**
  * Recursively intersects Ray Charles with his node and returns the distance to
@@ -272,31 +264,43 @@ inline float Intersect(const Ray charles, float t,
                        const BVHNode& node, const vector<BVHNode>& nodes, 
                        const vector<Sphere> spheres, unsigned int &sphereId) {
 
+    // ++levels;
+    // for (int i = 0; i < levels; ++i) cout << "  ";
+    // cout << "Intersect: [t: " << t << ", n: " << node.ToString() << "]" << endl;
+
     if (node.GetType() == BVHNode::LEAF) {
         // Intersect leaf
+        // --levels;
         return Exhaustive(charles, t, node, spheres, sphereId);
     } else {
         // Traverse further
         const BVHNode left = nodes[node.GetLeftChild()];
         float tLeft;
-        if (!left.aabb.ClosestIntersection(charles, tLeft)) tLeft = -1.0f;
+        if (!left.aabb.ClosestIntersection(charles, tLeft)) tLeft = 1e32f;
         
         const BVHNode right = nodes[node.GetRightChild()];
         float tRight;
-        if (!right.aabb.ClosestIntersection(charles, tRight)) tRight = -1.0f;
+        if (!right.aabb.ClosestIntersection(charles, tRight)) tRight = 1e32f;
     
         if (tLeft < tRight) { // Intersect left first
-            if (tLeft < t)
-                t = Intersect(charles, t, left, nodes, spheres, sphereId);
-            if (tRight < t)
-                t = Intersect(charles, t, right, nodes, spheres, sphereId);
+            // for (int i = 0; i < levels; ++i) cout << "  ";
+            // cout << " +->[tLeft: " << tLeft << " -> " << left.aabb.ToString() << endl;
+            // for (int i = 0; i < levels; ++i) cout << "  ";
+            // cout << " +->[tRight: " << tRight << " -> " << right.aabb.ToString() << endl;
+
+            if (tLeft < t) t = Intersect(charles, t, left, nodes, spheres, sphereId);
+            if (tRight < t) t = Intersect(charles, t, right, nodes, spheres, sphereId);
         } else { // Intersect right first
-            if (tRight < t)
-                t = Intersect(charles, t, right, nodes, spheres, sphereId);
-            if (tLeft < t)
-                t = Intersect(charles, t, left, nodes, spheres, sphereId);
+            // for (int i = 0; i < levels; ++i) cout << "  ";
+            // cout << " +->[tRight: " << tRight << " -> " << right.aabb.ToString() << endl;
+            // for (int i = 0; i < levels; ++i) cout << "  ";
+            // cout << " +->[tLeft: " << tLeft << " -> " << left.aabb.ToString() << endl;
+
+            if (tRight < t) t = Intersect(charles, t, right, nodes, spheres, sphereId);
+            if (tLeft < t) t = Intersect(charles, t, left, nodes, spheres, sphereId);
         }
-        
+
+        // --levels;        
         return t;
     }
 }
@@ -311,8 +315,10 @@ inline float Intersect(const Ray charles, const vector<BVHNode>& nodes,
 Color Shade(const Ray ray, const int depth, const vector<BVHNode>& nodes, const vector<Sphere>& spheres) {
     // id of intersected object
     unsigned int sphereId = 0;
-    
+
+    // cout << "Shade: " << ray.ToString() << endl;
     const float t = Intersect(ray, nodes, spheres, sphereId);
+    // cout << endl;
     if (t <= 0.0f)
         return Color(0,0,0); // Background color
 
@@ -324,7 +330,7 @@ Color Shade(const Ray ray, const int depth, const vector<BVHNode>& nodes, const 
 
     Color f = sphere.color;
     const float maxRefl = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z;
-    if (depth > 5) // if depth above 5, then terminate
+    if (depth > 1) // if depth above 5, then terminate
         return sphere.emission;
 
     // All objects are diffuse
@@ -352,8 +358,12 @@ int main(int argc, char *argv[]){
     vector<BVHNode> nodes = vector<BVHNode>(1);
     AABB startAABB = AABB(Vector3(-1e30f, -1e30f, -1e30f), Vector3(1e30f, 1e30f, 1e30f));
     CreateBVH(startAABB, 0, nodes, spheres, spheres.begin(), spheres.end());
+    
 
+    cout << " === Hierarchy ===" << endl;
     PrintHierarchy(nodes);
+    cout << endl;
+    cout << endl;
 
     Color* frags = new Color[rays.size()];
     for (int r = 0; r < rays.size(); ++r) {
