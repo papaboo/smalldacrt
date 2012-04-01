@@ -147,7 +147,7 @@ void CreateBVH(const AABB& parentAABB, const unsigned int nodeIndex, vector<BVHN
     AABB aabb = Intersection(parentAABB, nodeAABB);
 
     unsigned int range = sphereEnd - sphereBegin;
-    if (range < 16)
+    if (range < 6)
         // Create leaf
         nodes[nodeIndex] = BVHNode::Leaf(nodeAABB, sphereBegin - spheres.begin(), range);
     else {
