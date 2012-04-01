@@ -12,10 +12,13 @@
 #include <iostream>
 #include <sstream>
 
-#include <vector>
 #include <algorithm>
+#include <stack>
+#include <utility>
+#include <vector>
 
 using std::vector;
+using std::stack;
 using std::cout;
 using std::endl;
 
@@ -147,7 +150,7 @@ void CreateBVH(const AABB& parentAABB, const unsigned int nodeIndex, vector<BVHN
     AABB aabb = Intersection(parentAABB, nodeAABB);
 
     unsigned int range = sphereEnd - sphereBegin;
-    if (range < 6)
+    if (range < 12)
         // Create leaf
         nodes[nodeIndex] = BVHNode::Leaf(nodeAABB, sphereBegin - spheres.begin(), range);
     else {
@@ -253,9 +256,6 @@ inline float Exhaustive(const Ray charles, float t, const BVHNode& node,
     return t;
 }
 
-static int levels = 0;
-
-    
 /**
  * Recursively intersects Ray Charles with his node and returns the distance to
  * the closest intersection and a stores the id of the sphere in sphereId.
@@ -264,13 +264,8 @@ inline float Intersect(const Ray charles, float t,
                        const BVHNode& node, const vector<BVHNode>& nodes, 
                        const vector<Sphere> spheres, unsigned int &sphereId) {
 
-    // ++levels;
-    // for (int i = 0; i < levels; ++i) cout << "  ";
-    // cout << "Intersect: [t: " << t << ", n: " << node.ToString() << "]" << endl;
-
     if (node.GetType() == BVHNode::LEAF) {
         // Intersect leaf
-        // --levels;
         return Exhaustive(charles, t, node, spheres, sphereId);
     } else {
         // Traverse further
@@ -283,24 +278,13 @@ inline float Intersect(const Ray charles, float t,
         if (!right.aabb.ClosestIntersection(charles, tRight)) tRight = 1e32f;
     
         if (tLeft < tRight) { // Intersect left first
-            // for (int i = 0; i < levels; ++i) cout << "  ";
-            // cout << " +->[tLeft: " << tLeft << " -> " << left.aabb.ToString() << endl;
-            // for (int i = 0; i < levels; ++i) cout << "  ";
-            // cout << " +->[tRight: " << tRight << " -> " << right.aabb.ToString() << endl;
-
             if (tLeft < t) t = Intersect(charles, t, left, nodes, spheres, sphereId);
             if (tRight < t) t = Intersect(charles, t, right, nodes, spheres, sphereId);
         } else { // Intersect right first
-            // for (int i = 0; i < levels; ++i) cout << "  ";
-            // cout << " +->[tRight: " << tRight << " -> " << right.aabb.ToString() << endl;
-            // for (int i = 0; i < levels; ++i) cout << "  ";
-            // cout << " +->[tLeft: " << tLeft << " -> " << left.aabb.ToString() << endl;
-
             if (tRight < t) t = Intersect(charles, t, right, nodes, spheres, sphereId);
             if (tLeft < t) t = Intersect(charles, t, left, nodes, spheres, sphereId);
         }
 
-        // --levels;        
         return t;
     }
 }
@@ -308,16 +292,59 @@ inline float Intersect(const Ray charles, float t,
 inline float Intersect(const Ray charles, const vector<BVHNode>& nodes, 
                       const vector<Sphere> spheres, unsigned int &sphereId) {
     sphereId = -1;
-    float t = Intersect(charles, 1e30, nodes[0], nodes, spheres, sphereId);
+    float t = Intersect(charles, 1e30f, nodes[0], nodes, spheres, sphereId);
     return sphereId == -1 ? -1.0f : t;
 }
+
+
+/**
+ * Iteratively intersect rays with the given nodes and returns the distance to
+ * the closest intersection and stores the id of the intersected sphere in
+ * sphereId.
+ */
+inline float ItrIntersect(const Ray charles, const vector<BVHNode>& nodes, 
+                          const vector<Sphere> spheres, unsigned int &sphereId) {
+    sphereId = -1;
+    float t = 1e30f;
+    stack<std::pair<int, float> > stack;// = stack<int>(60);
+    stack.push(std::pair<int, float>(0, 0.0f));
+
+    do {
+        std::pair<int, float> next = stack.top(); stack.pop();
+        if (t < next.second) continue;
+        
+        BVHNode currentNode = nodes[next.first];
+        if (currentNode.GetType() == BVHNode::LEAF) // Intersect leaf
+            t = Exhaustive(charles, t, currentNode, spheres, sphereId);
+        else {
+            const BVHNode& left = nodes[currentNode.GetLeftChild()];
+            float tLeft;
+            if (!left.aabb.ClosestIntersection(charles, tLeft)) tLeft = 1e32f;
+            
+            const BVHNode& right = nodes[currentNode.GetRightChild()];
+            float tRight;
+            if (!right.aabb.ClosestIntersection(charles, tRight)) tRight = 1e32f;
+
+            if (tLeft < tRight) { // Intersect left first
+                if (tRight < t) stack.push(std::pair<int, float>(currentNode.GetRightChild(), tRight));
+                if (tLeft < t) stack.push(std::pair<int, float>(currentNode.GetLeftChild(), tLeft));
+            } else { // Intersect right first
+                if (tLeft < t) stack.push(std::pair<int, float>(currentNode.GetLeftChild(), tLeft));
+                if (tRight < t) stack.push(std::pair<int, float>(currentNode.GetRightChild(), tRight));
+            }
+        }
+    } while (stack.size() > 0);
+
+    return t;
+}
+
 
 Color Shade(const Ray ray, const int depth, const vector<BVHNode>& nodes, const vector<Sphere>& spheres) {
     // id of intersected object
     unsigned int sphereId = 0;
 
     // cout << "Shade: " << ray.ToString() << endl;
-    const float t = Intersect(ray, nodes, spheres, sphereId);
+    const float t = ItrIntersect(ray, nodes, spheres, sphereId);
     // cout << endl;
     if (t <= 0.0f)
         return Color(0,0,0); // Background color
