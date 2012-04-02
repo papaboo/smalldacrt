@@ -666,16 +666,18 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
     
     // The termination criteria expreses that once the exhaustive O(r * s)
     // search is faster than performing another split we terminate recursion.
-    if (rayCount * sphereCount <= 16 * (rayCount + sphereCount)) {
+    if ((long)rayCount * (long)sphereCount <= (long)16 * ((long)rayCount + (long)sphereCount)) {
         if (print) {
-            for (int i = -1; i < level; ++i) std::cout << "  ";
-            std::cout << "Exhaustive with index valeus: " << rayOffset << " -> " << rayCount << 
+            for (int i = -1; i < level; ++i) cout << "  ";
+            cout << (rayCount * sphereCount) << " <= " << (16 * (rayCount + sphereCount)) << endl;
+            for (int i = -1; i < level; ++i) cout << "  ";
+            cout << "Exhaustive with index valeus: " << rayOffset << " -> " << rayCount << 
                 ", sphere: " << sphereOffset << " -> " << sphereCount << 
-                ", [min: " << coneMin << ", range: " << coneRange << "]" << std::endl;
-            for (int i = -1; i < level; ++i) std::cout << "  ";
-            std::cout << " +---Cube: " << cube.ToString() << std::endl;
-            for (int i = -1; i < level; ++i) std::cout << "  ";
-            std::cout << " +---Cone: " << cone.ToString() << std::endl;
+                ", [min: " << coneMin << ", range: " << coneRange << "]" << endl;
+            for (int i = -1; i < level; ++i) cout << "  ";
+            cout << " +---Cube: " << cube.ToString() << endl;
+            for (int i = -1; i < level; ++i) cout << "  ";
+            cout << " +---Cone: " << cone.ToString() << endl;
         }
         
         Exhaustive(rays, rayIDs, rayOffset, rayCount,
@@ -683,14 +685,14 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
     } else {
 
         if (print) {
-            for (int i = -1; i < level; ++i) std::cout << "  ";
-            std::cout << "Dacrt with ray valeus: " << rayOffset << " -> " << rayCount << 
+            for (int i = -1; i < level; ++i) cout << "  ";
+            cout << "Dacrt with ray valeus: " << rayOffset << " -> " << rayCount << 
                 ", sphere: " << sphereOffset << " -> " << sphereCount << 
-                ", [min: " << coneMin << ", range: " << coneRange << "]" << std::endl;
-            for (int i = -1; i < level; ++i) std::cout << "  ";
-            std::cout << " +---Cube: " << cube.ToString() << std::endl;
-            for (int i = -1; i < level; ++i) std::cout << "  ";
-            std::cout << " +---Cone: " << cone.ToString() << std::endl;
+                ", [min: " << coneMin << ", range: " << coneRange << "]" << endl;
+            for (int i = -1; i < level; ++i) cout << "  ";
+            cout << " +---Cube: " << cube.ToString() << endl;
+            for (int i = -1; i < level; ++i) cout << "  ";
+            cout << " +---Cone: " << cone.ToString() << endl;
         }
         
         // @TODO Better decision method
@@ -777,7 +779,7 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
         std::sort(rayIndices.begin(), rayIndices.end());
         // Apply shading
         std::cout << "  Apply shading" << std::endl;        
-        Shade(rays, rayIndices, rayFrags, spheres, hits, nextRayIndices, nextOffset);
+        SimpleShade(rays, rayIndices, rayFrags, spheres, hits, nextRayIndices, nextOffset);
         nextRayIndices.resize(nextOffset);
         
         rayIndices = nextRayIndices;
@@ -793,7 +795,8 @@ int main(int argc, char *argv[]){
     int iterations = argc >= 3 ? atoi(argv[2]) : 1; // # iterations
     Color* cs = NULL;
 
-    vector<Sphere> spheres = Scenes::CornellBox();
+    //vector<Sphere> spheres = Scenes::CornellBox();
+    vector<Sphere> spheres = Scenes::SphereBox();
 
     Fragment* frags = new Fragment[WIDTH * HEIGHT * samples];
     vector<Fragment*> rayFrags(WIDTH * HEIGHT * samples);
