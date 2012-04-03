@@ -39,19 +39,40 @@ public:
         return spheres;
     }
 
+    
     static std::vector<Sphere> SphereBox() {
-        const int SPHERES = 5000;
+        const int SPHERES = 100;
         std::vector<Sphere> spheres = std::vector<Sphere>(SPHERES);
         for (int s = 0; s < SPHERES; ++s) {
             // Create weird random spheres
-            float radius = 0.25f + 1.75f * Rand01();
-            Vector3 pos = Vector3(Rand01() * 100.0 , Rand01() * 100.0 , Rand01() * 100.0 + 100.0);
-            Color light = Rand01() > 0.3f ? Color(0,0,0) : Color(2,2,2);
+            float radius = 10.25f + 1.75f * Rand01();
+            Vector3 pos = Vector3(10.0f + Rand01() * 80.0 , Rand01() * 80.0 , Rand01() * 100.0 + 50.0);
+            Color light = Rand01() > 0.3f ? Color(0,0,0) : Color(0.5f, 0.5f, 0.5f);
             Color c = Color(Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f);
             float reflParam = Rand01();
             ReflectionType rt = reflParam < 0.1f ? REFRACTING : (reflParam > 0.4f ? SPECULAR : DIFFUSE);
+            //ReflectionType rt = DIFFUSE;
         
-            spheres[s] = Sphere(radius, pos, Vector3(), c, rt);
+            spheres[s] = Sphere(radius, pos, light, c, rt);
+        }
+        
+        return spheres;
+    }
+
+    static std::vector<Sphere> GlasBox() {
+        const int SPHERES = 1000;
+        std::vector<Sphere> spheres = std::vector<Sphere>(SPHERES);
+        for (int s = 0; s < SPHERES; ++s) {
+            // Create weird random spheres
+            float radius = 1.0f + 3.0f * Rand01();
+            Vector3 pos = Vector3(10.0f + Rand01() * 80.0 , Rand01() * 80.0 , Rand01() * 100.0 + 50.0);
+            Color light = Color(0.1f, 0.4f, 0.1f);
+            Color c = Color(Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f, Rand01() * 0.8f + 0.1f);
+            // float reflParam = Rand01();
+            // ReflectionType rt = reflParam < 0.1f ? REFRACTING : (reflParam > 0.4f ? SPECULAR : DIFFUSE);
+            ReflectionType rt = REFRACTING;
+        
+            spheres[s] = Sphere(radius, pos, light, c, rt);
         }
         
         return spheres;
