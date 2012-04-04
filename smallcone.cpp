@@ -419,13 +419,13 @@ struct PartitionSpheresByCone {
     const vector<Sphere>& spheres;
     const Cone cone;
     float &min, &max;
-    float sinAngle, cosAngleSqr;
+    float invSinAngle, cosAngleSqr;
     PartitionSpheresByCone(const vector<Sphere>& spheres, const Cone cone, float &min, float &max)
         : spheres(spheres), cone(cone), min(min), max(max), 
-          sinAngle(std::sin(cone.spreadAngle)), 
+          invSinAngle(1.0f / std::sin(cone.spreadAngle)), 
           cosAngleSqr(std::cos(cone.spreadAngle) * std::cos(cone.spreadAngle)) {}
     bool operator()(int i) { 
-        if (cone.DoesIntersect(spheres[i], sinAngle, cosAngleSqr)) {
+        if (cone.DoesIntersect(spheres[i], invSinAngle, cosAngleSqr)) {
             float dist = (cone.apex - spheres[i].position).Length();
             min = std::min(min, dist - spheres[i].radius);
             max = std::max(max, dist - spheres[i].radius);
@@ -779,7 +779,7 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
         std::sort(rayIndices.begin(), rayIndices.end());
         // Apply shading
         std::cout << "  Apply shading" << std::endl;        
-        SimpleShade(rays, rayIndices, rayFrags, spheres, hits, nextRayIndices, nextOffset);
+        Shade(rays, rayIndices, rayFrags, spheres, hits, nextRayIndices, nextOffset);
         nextRayIndices.resize(nextOffset);
         
         rayIndices = nextRayIndices;
