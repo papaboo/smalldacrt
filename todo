@@ -1,0 +1,18 @@
+Try HyperCube-Sphere intersection instead of using cones. (Cones may be fast,
+but the initial split down the middle of a scene of evenly distributed spheres
+only removes ~5%)
+
+If doing HyperCube-Sphere, can we simplify the intersection by using our
+knowledge of which 'dimension' was split.
+
+Use sphere-cones instead and advance their origin by minT along their direction
+
+Add DacrtByDistance again. Only do it at the root and leafs?
+
+Test data! Exhaustive intersections and partitionings(rays and spheres)
+
+Add packets.
+
+Try an (implicit) ray-hierarchy?
+
+Test different termination criterias
