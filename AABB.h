@@ -80,5 +80,13 @@ inline AABB Intersection(const AABB& lhs, const AABB& rhs) {
                         std::min(lhs.max.y, rhs.max.y),
                         std::min(lhs.max.z, rhs.max.z)));
 }
+inline AABB Union(const AABB& lhs, const AABB& rhs) {
+    return AABB(Vector3(std::min(lhs.min.x, rhs.min.x),
+                        std::min(lhs.min.y, rhs.min.y),
+                        std::min(lhs.min.z, rhs.min.z)),
+                Vector3(std::max(lhs.max.x, rhs.max.x),
+                        std::max(lhs.max.y, rhs.max.y),
+                        std::max(lhs.max.z, rhs.max.z)));
+}
 
 #endif
