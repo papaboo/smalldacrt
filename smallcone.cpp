@@ -24,12 +24,14 @@ using std::endl;
 #include "Vector.h"
 #include "Ray.h"
 #include "Sphere.h"
+#include "HyperCube.h"
 #include "HyperRay.h"
 #include "AABB.h"
 #include "AABPenteract.h"
 #include "Cone.h"
 #include "Utils.h"
 #include "Scenes.h"
+#include "Plane.h"
 
 enum Axis {X = 0, Y = 1, Z = 2, U = 3, V = 4};
 
@@ -61,94 +63,13 @@ struct BoundedRay {
 
 };
 
-inline float SimpleIntersect(const Cone& c, const Ray& r, const float radius) {
-    const float eps = 1e-4;
-    Vector3 dir = c.apex - r.origin;
-    float b = Dot(dir, r.dir);
-    float det = b*b - Dot(dir, dir) + radius * radius;
-    if (det < 0) return 0; else det = sqrt(det);
-    float t = b + det;
-    return t > eps ? t : 0.0f;
+inline HyperCube CreateHyperCube(const SignedAxis axis, const vector<BoundedRay>& boundedRays, 
+                                 const vector<int>::iterator rayIndexBegin, const int rayOffset) {
+    AABPenteract cube = AABPenteract(boundedRays[*rayIndexBegin].hyperRay.point);
+    for (int r = 1; r < rayOffset; ++r)
+        cube.Extent(boundedRays[rayIndexBegin[r]].hyperRay.point);
+    return HyperCube(cube, axis);
 }
-
-struct HyperCube {
-    AABPenteract cube;
-    SignedAxis axis;
-    
-    HyperCube() : cube(AABPenteract()), axis(negZ) {}
-
-    HyperCube(const SignedAxis axis, vector<HyperRay>::iterator rayBegin, int rayOffset) 
-        : cube(AABPenteract(rayBegin[0].point)), axis(axis) {
-        for (int r = 1; r < rayOffset; ++r)
-            cube.Extent(rayBegin[r].point);
-    }
-
-    HyperCube(const SignedAxis axis, const vector<HyperRay>& hyperRays, 
-              const vector<int>::iterator rayIndexBegin, const int rayOffset) 
-        : axis(axis) {
-        cube = AABPenteract(hyperRays[*rayIndexBegin].point);
-        for (int r = 1; r < rayOffset; ++r)
-            cube.Extent(hyperRays[rayIndexBegin[r]].point);
-    }
-
-    HyperCube(const SignedAxis axis, const vector<BoundedRay>& boundedRays, 
-              const vector<int>::iterator rayIndexBegin, const int rayOffset) 
-        : axis(axis) {
-        // cube = AABPenteract(boundedRays[*rayIndexBegin].PointAtT());
-        // for (int r = 1; r < rayOffset; ++r)
-        //     cube.Extent(boundedRays[rayIndexBegin[r]].PointAtT());
-        cube = AABPenteract(boundedRays[*rayIndexBegin].hyperRay.point);
-        for (int r = 1; r < rayOffset; ++r)
-            cube.Extent(boundedRays[rayIndexBegin[r]].hyperRay.point);
-    }
-
-    inline Cone ConeBounds() const {
-        Vector3 A = F(axis, cube.u.min, cube.v.max).Normalize();
-        Vector3 B = F(axis, cube.u.max, cube.v.min).Normalize();
-        Vector3 dir = ((A + B) * 0.5f).Normalize();
-        
-        Vector3 C = F(axis, cube.u.min, cube.v.min).Normalize();
-        Vector3 D = F(axis, cube.u.max, cube.v.max).Normalize();
-        
-        // Angle in degrees
-        float angle = acos(Dot(A, dir));
-        angle = std::max(angle, (float)acos(Dot(B, dir)));
-        angle = std::max(angle, (float)acos(Dot(C, dir)));
-        angle = std::max(angle, (float)acos(Dot(D, dir)));
-        
-        // Apex
-        Vector3 r0 = Vector3(cube.x.min, cube.y.min, cube.z.min);
-        Vector3 r1 = Vector3(cube.x.max, cube.y.max, cube.z.max);
-        Vector3 center = (r0 + r1) * 0.5f;
-        Vector3 negOffset = dir * (r0 - r1).Length() / (2 * sin(angle));
-        Vector3 apex = center - negOffset;
-        
-        return Cone(apex, dir, angle);
-    }
-
-    inline AABB GetAABB() const {
-        return AABB(Vector3(cube.x.min, cube.y.min, cube.z.min),
-                    Vector3(cube.x.max, cube.y.max, cube.z.max));
-    }
-
-    inline std::string ToString() const {
-        std::ostringstream out;
-        out << "[axis: " << axis << ", cube: " << cube.ToString() << "]";
-        return out.str();
-    }
-
-private:
-    inline Vector3 F(SignedAxis a, float u, float v) const {
-        switch(a) {
-        case posX: return Vector3(1.0f, u, v);
-        case negX: return Vector3(-1.0f, u, v);
-        case posY: return Vector3(u, 1.0f, v);
-        case negY: return Vector3(u, -1.0f, v);
-        case posZ: return Vector3(u, v, 1.0f);
-        case negZ: return Vector3(u, v, -1.0f);
-        }
-    }
-};
 
 struct Hit {
     int sphereID;
@@ -178,7 +99,8 @@ int samples;
 
 long exhaustives = 0;
 long distanceDacrt = 0;
-long spreadDacrt = 0;
+long rayDacrtRays = 0;
+long rayDacrtSpheres = 0;
 
 inline int Index(const int x, const int y, const int sub) {
     return (x + y * WIDTH) * samples + sub;
@@ -481,7 +403,8 @@ inline void DacrtByRays(const HyperCube& cube, const Cone& cone, const int level
                        const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
                        vector<Hit> &hits) {
 
-    ++spreadDacrt;
+    rayDacrtRays += rayCount;
+    rayDacrtSpheres += sphereCount;
     
     // Split the hypercube along the largest dimension and partition the ray ids
     float xRange = cube.cube.x.Range();
@@ -515,7 +438,7 @@ inline void DacrtByRays(const HyperCube& cube, const Cone& cone, const int level
     
 
     // Cube and cone for the lower side
-    HyperCube lowerCube = HyperCube(cube.axis, rays, begin, newRayCount);
+    HyperCube lowerCube = CreateHyperCube(cube.axis, rays, begin, newRayCount);
     Cone lowerCone = lowerCube.ConeBounds();
     
     // Partition spheres according to cone
@@ -542,7 +465,7 @@ inline void DacrtByRays(const HyperCube& cube, const Cone& cone, const int level
     // Cube and cone for the upper side
     int upperRayOffset = rayOffset + newRayCount;
     int upperRayCount = rayCount - newRayCount;
-    HyperCube upperCube = HyperCube(cube.axis, rays, rayIDs.begin() + upperRayOffset, upperRayCount);
+    HyperCube upperCube = CreateHyperCube(cube.axis, rays, rayIDs.begin() + upperRayOffset, upperRayCount);
     Cone upperCone = upperCube.ConeBounds();
     
     // Partition spheres according to cone
@@ -743,13 +666,10 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
             while(rayIndex < rayIndices.size() && rays[rayIndices[rayIndex]].hyperRay.axis == a)
                 ++rayIndex;
             int rayCount = rayIndex - rayOffset;
-            std::cout << "  RayCount is " << rayCount << " for axis " << a << 
-                " [exhaustives: " << exhaustives << ", distanceDacrt: " << distanceDacrt << 
-                ", spreadDacrt: " << spreadDacrt << std::endl;
             
             if (rayCount == 0) continue;
             
-            const HyperCube hc((SignedAxis)a, rays, rayIndices.begin(), rayCount);
+            const HyperCube hc = CreateHyperCube((SignedAxis)a, rays, rayIndices.begin(), rayCount);
             const Cone cone = hc.ConeBounds();
             
             // Partition spheres according to hypercube
@@ -774,6 +694,10 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
             
             // Offset to beginning of next ray bundle.
             rayOffset += rayCount;
+
+            std::cout << "  RayCount is " << rayCount << " for axis " << a << 
+                " [exhaustives: " << exhaustives << 
+                ", ray dacrt [rays : " << rayDacrtRays << ", spheres: " << rayDacrtSpheres << "]]" << std::endl;
         }
 
         std::sort(rayIndices.begin(), rayIndices.end());
