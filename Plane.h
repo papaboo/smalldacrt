@@ -39,6 +39,9 @@ public:
         : normal(normal), distance(-Dot(normal, point)) {}
 
 
+    inline const Vector3 GetNormal() const { return normal; }
+    inline const float GetDistance() const { return distance; }
+
     /**
      * Calculates the distance from the point p to the plane. If the planes
      * normal is not normalized then the distance needs to be divided by the
