@@ -18,6 +18,7 @@ private:
     float distance;
 
 public:
+
     /**
      * Plane constructor
      *
@@ -25,7 +26,7 @@ public:
      * @distance. The distance to origo modulated by the length of the normal
      * (if not normalized). D in the plane equation.
      */
-    Plane(Vector3 normal, float distance)
+    Plane(Vector3 normal = Vector3(1,0,0), float distance = 0)
         : normal(normal), distance(distance) {}
 
     /**
