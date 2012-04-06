@@ -5,6 +5,7 @@
 #include "AABPenteract.h"
 #include "Cone.h"
 #include "HyperRay.h"
+#include "Plane.h"
 
 #include <vector>
 using std::vector;
@@ -13,7 +14,7 @@ struct HyperCube {
     AABPenteract cube;
     SignedAxis axis;
     
-    HyperCube(AABPenteract cube = AABPenteract(), SignedAxis axis = negZ) 
+    HyperCube(const SignedAxis axis = negZ, const AABPenteract cube = AABPenteract()) 
         : cube(cube), axis(axis) {}
 
     HyperCube(const SignedAxis axis, vector<HyperRay>::iterator rayBegin, int rayOffset) 
@@ -59,6 +60,77 @@ struct HyperCube {
                     Vector3(cube.x.max, cube.y.max, cube.z.max));
     }
 
+    inline Plane LowerUBoundingPlane() const {
+        switch(axis) {
+        case posX: 
+        case negX: {
+            float xDir = axis == posX ? 1 : -1;
+            Vector3 v0(xDir, cube.u.min, cube.v.min);
+            Vector3 v1(xDir, cube.u.min, cube.v.max);
+            bool useXMax = cube.u.min < 0.0f ^ axis == posX;
+            Vector3 point = Vector3(useXMax ? cube.x.max : cube.x.min, 
+                                cube.y.min, cube.z.min);
+            return Plane(v1.Cross(v0).Normalize(), point);
+        }
+        case posY: 
+        case negY: {
+            float yDir = axis == posY ? 1 : -1;
+            Vector3 v0(cube.u.min, yDir, cube.v.min);
+            Vector3 v1(cube.u.min, yDir, cube.v.max);
+            bool useYMax = cube.u.min < 0.0f ^ axis == posY;
+            Vector3 point = Vector3(cube.x.min, 
+                                    useYMax ? cube.y.max : cube.y.min, cube.z.min);
+            return Plane(v1.Cross(v0).Normalize(), point);
+        }   
+        case posZ: 
+        case negZ: {
+            float zDir = axis == posZ ? 1 : -1;
+            Vector3 v0(cube.u.min, cube.v.min, zDir);
+            Vector3 v1(cube.u.min, cube.v.max, zDir);
+            bool useZMax = cube.u.min < 0.0f ^ axis == posZ;
+            Vector3 point = Vector3(cube.x.min, cube.y.min,
+                                    useZMax ? cube.z.max : cube.z.min);
+            return Plane(v1.Cross(v0).Normalize(), point);
+        }
+        }
+    }
+        
+    inline Plane UpperUBoundingPlane() const {
+        switch(axis) {
+        case posX: 
+        case negX: {
+            float xDir = axis == posX ? 1 : -1;
+            Vector3 v0(xDir, cube.u.max, cube.v.min);
+            Vector3 v1(xDir, cube.u.max, cube.v.max);
+            bool useXMax = cube.u.max > 0.0f ^ axis == posX;
+            Vector3 point = Vector3(useXMax ? cube.x.max : cube.x.min, 
+                                cube.y.max, cube.z.max);
+            return Plane(v1.Cross(v0).Normalize(), point);
+        }
+        case posY: 
+        case negY: {
+            float yDir = axis == posY ? 1 : -1;
+            Vector3 v0(cube.u.max, yDir, cube.v.min);
+            Vector3 v1(cube.u.max, yDir, cube.v.max);
+            bool useYMax = cube.u.max > 0.0f ^ axis == posY;
+            Vector3 point = Vector3(cube.x.max, 
+                                    useYMax ? cube.y.max : cube.y.min, 
+                                    cube.z.max);
+            return Plane(v1.Cross(v0).Normalize(), point);
+        }   
+        case posZ: 
+        case negZ: {
+            float zDir = axis == posZ ? 1 : -1;
+            Vector3 v0(cube.u.max, cube.v.min, zDir);
+            Vector3 v1(cube.u.max, cube.v.max, zDir);
+            bool useZMax = cube.u.max > 0.0f ^ axis == posZ;
+            Vector3 point = Vector3(cube.x.max, cube.y.max, 
+                                    useZMax ? cube.z.max : cube.z.min);
+            return Plane(v1.Cross(v0).Normalize(), point);
+        }
+        }
+    }
+        
     inline std::string ToString() const {
         std::ostringstream out;
         out << "[axis: " << axis << ", cube: " << cube.ToString() << "]";
@@ -66,7 +138,7 @@ struct HyperCube {
     }
 
 private:
-    inline Vector3 F(SignedAxis a, float u, float v) const {
+    inline Vector3 F(const SignedAxis a, const float u, const float v) const {
         switch(a) {
         case posX: return Vector3(1.0f, u, v);
         case negX: return Vector3(-1.0f, u, v);

@@ -33,8 +33,6 @@ using std::endl;
 #include "Scenes.h"
 #include "Plane.h"
 
-enum Axis {X = 0, Y = 1, Z = 2, U = 3, V = 4};
-
 struct BoundedRay {
     HyperRay hyperRay;
     float t; // The progress of the ray
@@ -68,7 +66,7 @@ inline HyperCube CreateHyperCube(const SignedAxis axis, const vector<BoundedRay>
     AABPenteract cube = AABPenteract(boundedRays[*rayIndexBegin].hyperRay.point);
     for (int r = 1; r < rayOffset; ++r)
         cube.Extent(boundedRays[rayIndexBegin[r]].hyperRay.point);
-    return HyperCube(cube, axis);
+    return HyperCube(axis, cube);
 }
 
 struct Hit {
@@ -288,47 +286,22 @@ inline void Exhaustive(vector<BoundedRay> &rays, vector<int> &rayIndices, const 
                        const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
                        vector<Hit> &hits) {
 
-    if (sphereCount > 4) {
-        AABB aabb = CalcAABB(spheres, sphereIDs.begin() + sphereOffset, sphereIDs.begin() + sphereOffset + sphereCount);
-        
-        for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
-            const int rayID = rayIndices[i];
-            const Ray charles = rays[rayID].ToRay();
-            float tmp;
-            if (aabb.ClosestIntersection(charles, tmp)) {
-                float tHit = rays[rayID].t == 0.0f ? 1e30 : rays[rayID].t;
-                Hit hit = hits[rayID];
-                for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
-                    ++exhaustives;
-                    const Sphere sphere = spheres[sphereIDs[s]];
-                    const float t = sphere.Intersect(charles);
-                    if (0 < t && t < tHit) {
-                        hit = Hit(sphereIDs[s]);
-                        tHit = t;
-                    }
-                }
-                hits[rayID] = hit;
-                rays[rayID].t = tHit;
+    for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
+        const int rayID = rayIndices[i];
+        const Ray charles = rays[rayID].ToRay();
+        float tHit = rays[rayID].t == 0.0f ? 1e30 : rays[rayID].t;
+        Hit hit = hits[rayID];
+        for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
+            ++exhaustives;
+            const Sphere sphere = spheres[sphereIDs[s]];
+            const float t = sphere.Intersect(charles);
+            if (0 < t && t < tHit) {
+                hit = Hit(sphereIDs[s]);
+                tHit = t;
             }
         }
-    } else {
-        for (int i = indexOffset; i < indexOffset + indexCount; ++i) {
-            const int rayID = rayIndices[i];
-            const Ray charles = rays[rayID].ToRay();
-            float tHit = rays[rayID].t == 0.0f ? 1e30 : rays[rayID].t;
-            Hit hit = hits[rayID];
-            for (int s = sphereOffset; s < sphereOffset + sphereCount; ++s) {
-                ++exhaustives;
-                const Sphere sphere = spheres[sphereIDs[s]];
-                const float t = sphere.Intersect(charles);
-                if (0 < t && t < tHit) {
-                    hit = Hit(sphereIDs[s]);
-                    tHit = t;
-                }
-            }
-            hits[rayID] = hit;
-            rays[rayID].t = tHit;
-        }
+        hits[rayID] = hit;
+        rays[rayID].t = tHit;
     }
 }
 
@@ -715,6 +688,27 @@ int main(int argc, char *argv[]){
     
     sqrtSamples = argc >= 2 ? atoi(argv[1]) : 1; // # samples
     samples = sqrtSamples * sqrtSamples;
+
+    // vector<HyperRay> rays = vector<HyperRay>(4);
+    // float uMax = -0.1f, uMin = -0.2f, vMax = 0.3f, vMin = -0.4f;
+    // rays[0] = HyperRay(Ray(Vector3(-1,-1,-1), Vector3(1, uMax, vMax)));
+    // rays[1] = HyperRay(Ray(Vector3(-1,-1,-1), Vector3(1, uMax, vMin)));
+    // rays[2] = HyperRay(Ray(Vector3( 1, 1, 1), Vector3(1, uMin, vMax))); 
+    // rays[3] = HyperRay(Ray(Vector3( 1, 1, 1), Vector3(1, uMin, vMin)));
+    // HyperCube c = HyperCube(posX, rays.begin(), 4);
+
+    // cout << c.ToString() << endl;
+
+    // cout << c.UpperUBoundingPlane().ToString() << endl;
+
+    // Vector3 normal = Vector3(1, uMax, vMax).Cross(Vector3(1, uMax, vMin)).Normalize();
+    // Vector3 point = Vector3(1,1,1);
+    
+    // cout << "normal: " << normal.ToString() << endl;
+    // cout << "point: " << point.ToString() << endl;
+    // cout << "plane: " << Plane(normal, point).ToString() << endl;
+
+    // return 0;
     
     int iterations = argc >= 3 ? atoi(argv[2]) : 1; // # iterations
     Color* cs = NULL;
