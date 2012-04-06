@@ -7,7 +7,9 @@
 #include "HyperRay.h"
 #include "Plane.h"
 
+#include <limits>
 #include <vector>
+
 using std::vector;
 
 struct HyperCube {
@@ -60,75 +62,97 @@ struct HyperCube {
                     Vector3(cube.x.max, cube.y.max, cube.z.max));
     }
 
-    inline Plane LowerUBoundingPlane() const {
+    inline Plane UpperBoundingPlane(const Axis a) const {
+
+        // Calculate the normal of the bounding plane
+        Vector3 normal;
         switch(axis) {
         case posX: 
         case negX: {
             float xDir = axis == posX ? 1 : -1;
-            Vector3 v0(xDir, cube.u.min, cube.v.min);
-            Vector3 v1(xDir, cube.u.min, cube.v.max);
-            bool useXMax = cube.u.min < 0.0f ^ axis == posX;
-            Vector3 point = Vector3(useXMax ? cube.x.max : cube.x.min, 
-                                cube.y.min, cube.z.min);
-            return Plane(v1.Cross(v0).Normalize(), point);
+            switch(a) {
+            case X:
+                // Upper bounding plane is infinitely far away
+                // cout << "    " << xDir << " X - X" << endl;
+                return Plane(Vector3(-xDir, 0, 0), Vector3(xDir * std::numeric_limits<float>::max(), 0, 0));
+            case Y: case U: {
+                // cout << "    " << xDir << " X - Y or U" << endl;
+                Vector3 v0(xDir, cube.u.max, cube.v.min);
+                Vector3 v1(xDir, cube.u.max, cube.v.max);
+                normal = v0.Cross(v1).Normalize() * xDir;
+                break;
+            }
+            case Z: case V: {
+                // cout << "    " << xDir << " X - Z or V" << endl;
+                Vector3 v0(xDir, cube.u.max, cube.v.max);
+                Vector3 v1(xDir, cube.u.min, cube.v.max);
+                normal = v0.Cross(v1).Normalize() * xDir;
+                break;
+            }
+            }
+            break;
         }
+
         case posY: 
         case negY: {
             float yDir = axis == posY ? 1 : -1;
-            Vector3 v0(cube.u.min, yDir, cube.v.min);
-            Vector3 v1(cube.u.min, yDir, cube.v.max);
-            bool useYMax = cube.u.min < 0.0f ^ axis == posY;
-            Vector3 point = Vector3(cube.x.min, 
-                                    useYMax ? cube.y.max : cube.y.min, cube.z.min);
-            return Plane(v1.Cross(v0).Normalize(), point);
-        }   
+            switch(a) {
+            case Y:
+                // Upper bounding plane is infinitely far away
+                // cout << "    " << yDir << " Y - Y" << endl;
+                return Plane(Vector3(0, -yDir, 0), Vector3(0, yDir * std::numeric_limits<float>::max(), 0));
+            case X: case U: {
+                // cout << "    " << yDir << " Y - X or U" << endl;
+                Vector3 v0(cube.u.max, yDir, cube.v.max);
+                Vector3 v1(cube.u.max, yDir, cube.v.min);
+                normal = v0.Cross(v1).Normalize() * yDir;
+                break;
+            }
+            case Z: case V: {
+                // cout << "    " << yDir << " Y - Z or V" << endl;
+                Vector3 v0(cube.u.min, yDir, cube.v.max);
+                Vector3 v1(cube.u.max, yDir, cube.v.max);
+                normal = v0.Cross(v1).Normalize() * yDir;
+                break;
+            }
+            }
+            break;
+        }
+
         case posZ: 
         case negZ: {
             float zDir = axis == posZ ? 1 : -1;
-            Vector3 v0(cube.u.min, cube.v.min, zDir);
-            Vector3 v1(cube.u.min, cube.v.max, zDir);
-            bool useZMax = cube.u.min < 0.0f ^ axis == posZ;
-            Vector3 point = Vector3(cube.x.min, cube.y.min,
-                                    useZMax ? cube.z.max : cube.z.min);
-            return Plane(v1.Cross(v0).Normalize(), point);
+            switch(a) {
+            case Z:
+                // Upper bounding plane is infinitely far away
+                // cout << "    " << zDir << " Z - Z" << endl;
+                return Plane(Vector3(0, 0, -zDir), Vector3(0,0 , zDir * std::numeric_limits<float>::max()));
+            case X: case U: {
+                // cout << "    " << zDir << " Z - X or U" << endl;
+                Vector3 v0(cube.u.max, cube.v.min, zDir);
+                Vector3 v1(cube.u.max, cube.v.max, zDir);
+                normal = v0.Cross(v1).Normalize() * zDir;
+                break;
+            }
+            case Y: case V: {
+                // cout << "    " << zDir << " Z - Y or V" << endl;
+                Vector3 v0(cube.u.max, cube.v.max, zDir);
+                Vector3 v1(cube.u.min, cube.v.max, zDir);
+                normal = v0.Cross(v1).Normalize() * zDir;
+                break;
+            }
+            }
+            break;
         }
+
         }
-    }
+
+        // Use the planes normal to find a point on the AABB
+        Vector3 point = Vector3(normal.x < 0 ? cube.x.max : cube.x.min,
+                                normal.y < 0 ? cube.y.max : cube.y.min,
+                                normal.z < 0 ? cube.z.max : cube.z.min);
         
-    inline Plane UpperUBoundingPlane() const {
-        switch(axis) {
-        case posX: 
-        case negX: {
-            float xDir = axis == posX ? 1 : -1;
-            Vector3 v0(xDir, cube.u.max, cube.v.min);
-            Vector3 v1(xDir, cube.u.max, cube.v.max);
-            bool useXMax = cube.u.max > 0.0f ^ axis == posX;
-            Vector3 point = Vector3(useXMax ? cube.x.max : cube.x.min, 
-                                cube.y.max, cube.z.max);
-            return Plane(v1.Cross(v0).Normalize(), point);
-        }
-        case posY: 
-        case negY: {
-            float yDir = axis == posY ? 1 : -1;
-            Vector3 v0(cube.u.max, yDir, cube.v.min);
-            Vector3 v1(cube.u.max, yDir, cube.v.max);
-            bool useYMax = cube.u.max > 0.0f ^ axis == posY;
-            Vector3 point = Vector3(cube.x.max, 
-                                    useYMax ? cube.y.max : cube.y.min, 
-                                    cube.z.max);
-            return Plane(v1.Cross(v0).Normalize(), point);
-        }   
-        case posZ: 
-        case negZ: {
-            float zDir = axis == posZ ? 1 : -1;
-            Vector3 v0(cube.u.max, cube.v.min, zDir);
-            Vector3 v1(cube.u.max, cube.v.max, zDir);
-            bool useZMax = cube.u.max > 0.0f ^ axis == posZ;
-            Vector3 point = Vector3(cube.x.max, cube.y.max, 
-                                    useZMax ? cube.z.max : cube.z.min);
-            return Plane(v1.Cross(v0).Normalize(), point);
-        }
-        }
+        return Plane(normal, point);
     }
         
     inline std::string ToString() const {

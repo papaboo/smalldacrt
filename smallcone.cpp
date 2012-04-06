@@ -32,6 +32,7 @@ using std::endl;
 #include "Utils.h"
 #include "Scenes.h"
 #include "Plane.h"
+#include "Math.h"
 
 struct BoundedRay {
     HyperRay hyperRay;
@@ -369,6 +370,71 @@ struct PartitionRaysByV {
 
 
 /**
+ * A simple implementation based on **** without caching. Instead of using a
+ * bounding cone, geometry is split by calculating and upper and lower splitting
+ * plane and testing geometry against that.
+ */
+inline void DacrtByRaysUsingPlanes(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
+                                   vector<BoundedRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
+                                   const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
+                                   vector<Hit> &hits) {
+
+    rayDacrtRays += rayCount;
+    rayDacrtSpheres += sphereCount;
+
+    // Split the hypercube along the largest dimension and partition the ray ids
+    float xRange = cube.cube.x.Range();
+    float yRange = cube.cube.y.Range();
+    float zRange = cube.cube.z.Range();
+    float uRange = cube.cube.u.Range();
+    float vRange = cube.cube.v.Range();
+    float maxSpread = std::max(uRange, vRange);
+    float maxPos = std::max(xRange, std::max(yRange, zRange));
+
+    Axis split;
+    if (maxSpread > maxPos * 0.1f) // Split along the ray directions
+        split = uRange > vRange ? U : V;
+    else // Split along the ray positions
+        split = xRange > yRange && xRange > zRange ? X : (yRange > zRange ? Y : Z);
+
+    // Split the rays
+    vector<int>::iterator begin = rayIDs.begin() + rayOffset;
+    vector<int>::iterator rayPivot;
+    switch (split) {
+    case X:
+        rayPivot = std::partition(begin, begin + rayCount,
+                                  PartitionRaysByX(rays, cube.cube.x.Middle()));
+        break;
+    case Y:
+        rayPivot = std::partition(begin, begin + rayCount,
+                                  PartitionRaysByY(rays, cube.cube.y.Middle()));
+        break;
+    case Z:
+        rayPivot = std::partition(begin, begin + rayCount,
+                                  PartitionRaysByZ(rays, cube.cube.z.Middle()));
+        break;
+    case U:
+        rayPivot = std::partition(begin, begin + rayCount,
+                                  PartitionRaysByU(rays, cube.cube.u.Middle()));
+        break;
+    case V:
+        rayPivot = std::partition(begin, begin + rayCount,
+                                  PartitionRaysByV(rays, cube.cube.v.Middle()));
+        break;
+    }
+    int newRayCount = rayPivot - begin;
+
+    // Cubes and splitting planes
+    HyperCube lowerCube = CreateHyperCube(cube.axis, rays, begin, newRayCount);
+    int upperRayOffset = rayOffset + newRayCount;
+    int upperRayCount = rayCount - newRayCount;
+    HyperCube upperCube = CreateHyperCube(cube.axis, rays, rayIDs.begin() + upperRayOffset, upperRayCount);
+    Plane lowerSplitPlane, upperSplitPlane;
+        
+}
+
+
+/**
  * A simple implementation based on **** without caching.
  */
 inline void DacrtByRays(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
@@ -390,7 +456,7 @@ inline void DacrtByRays(const HyperCube& cube, const Cone& cone, const int level
 
     vector<int>::iterator begin = rayIDs.begin() + rayOffset;
     vector<int>::iterator rayPivot;
-    if (maxSpread > maxPos) { // Split along the ray directions
+    if (maxSpread > maxPos * 0.1f) { // Split along the ray directions
         rayPivot = uRange > vRange ?
             std::partition(begin, begin + rayCount,
                            PartitionRaysByU(rays, cube.cube.u.Middle())) :
@@ -684,31 +750,86 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
 }
 
 
+
+inline Vector3 TestDir(SignedAxis axis, float u, float v) {
+    switch(axis) {
+    case posX:
+        return Vector3(1.0f, u, v);
+    case negX:
+        return Vector3(-1.0f, u, v);
+    case posY:
+        return Vector3(u, 1.0f, v);
+    case negY:
+        return Vector3(u, -1.0f, v);
+    case posZ:
+        return Vector3(u, v, 1.0f);
+    case negZ:
+        return Vector3(u, v, -1.0f);
+    }        
+}
+
 int main(int argc, char *argv[]){
     
     sqrtSamples = argc >= 2 ? atoi(argv[1]) : 1; // # samples
     samples = sqrtSamples * sqrtSamples;
 
-    // vector<HyperRay> rays = vector<HyperRay>(4);
-    // float uMax = -0.1f, uMin = -0.2f, vMax = 0.3f, vMin = -0.4f;
-    // rays[0] = HyperRay(Ray(Vector3(-1,-1,-1), Vector3(1, uMax, vMax)));
-    // rays[1] = HyperRay(Ray(Vector3(-1,-1,-1), Vector3(1, uMax, vMin)));
-    // rays[2] = HyperRay(Ray(Vector3( 1, 1, 1), Vector3(1, uMin, vMax))); 
-    // rays[3] = HyperRay(Ray(Vector3( 1, 1, 1), Vector3(1, uMin, vMin)));
-    // HyperCube c = HyperCube(posX, rays.begin(), 4);
+    for (int a = 0; a < 6; ++a) {
 
-    // cout << c.ToString() << endl;
+        cout << "=== Testing signed axis " << a << " ===" << endl;
+        
+        vector<HyperRay> rays = vector<HyperRay>(4);
+        // float uMax = Rand01() * 0.5f - 0.2f;
+        // float uMin = Lerp(-0.3f, uMax, Rand01());
+        // float vMax = Rand01() * 0.5f - 0.2f;
+        // float vMin = Lerp(-0.3f, vMax, Rand01());
+        float uMax = 0.25f;
+        float uMin = -0.25f;
+        float vMax = 0.25f;
+        float vMin = -0.25f;
 
-    // cout << c.UpperUBoundingPlane().ToString() << endl;
+        rays[0] = HyperRay(Ray(Vector3(-1,-1,-1), TestDir((SignedAxis)a, uMax, vMax)));
+        rays[1] = HyperRay(Ray(Vector3(-1,-1,-1), TestDir((SignedAxis)a, uMax, vMin)));
+        rays[2] = HyperRay(Ray(Vector3( 1, 1, 1), TestDir((SignedAxis)a, uMin, vMax))); 
+        rays[3] = HyperRay(Ray(Vector3( 1, 1, 1), TestDir((SignedAxis)a, uMin, vMin)));
+        HyperCube c = HyperCube((SignedAxis)a, rays.begin(), 4);
 
-    // Vector3 normal = Vector3(1, uMax, vMax).Cross(Vector3(1, uMax, vMin)).Normalize();
-    // Vector3 point = Vector3(1,1,1);
-    
-    // cout << "normal: " << normal.ToString() << endl;
-    // cout << "point: " << point.ToString() << endl;
-    // cout << "plane: " << Plane(normal, point).ToString() << endl;
+        cout << "  cube " << c.ToString() << endl;
 
-    // return 0;
+        for(int d = 0; d < 5; ++d) {
+            cout << "    test axis " << d << endl;
+
+            // @TODO add lower plane
+            Plane upper = c.UpperBoundingPlane((Axis)d);
+            
+            // cout << "    upper plane " << upper.ToString() << " with point " <<  (upper.GetNormal() * upper.GetDistance()).ToString() << endl;
+            
+            // Test all corners of the box. They should all have a positive
+            // distance to indicate that they are inside the hyper cube.
+            for (float x = -1; x < 2.0f; x += 2.0f)
+                for (float y = -1; y < 2.0f; y += 2.0f)
+                    for (float z = -1; z < 2.0f; z += 2.0f) {
+                        Vector3 p = Vector3(x,y,z);
+                        float distance = upper.DistanceTo(p);
+                        if (distance <= -1e-4) {
+                            cout << "      point " << p.ToString() << " failed with distance " << distance << endl;
+                            return -1;
+                        } else
+                            cout << "      point " << p.ToString() << " passed with distance " << distance << endl;
+                    }
+
+            // Test a point extended along the center line of the hyper cube
+            Ray r(Vector3(0, 0, 0), TestDir((SignedAxis)a, c.cube.u.Middle(), c.cube.v.Middle()));
+            Vector3 p = r.PositionAt(500.0f);
+            float distance = upper.DistanceTo(p);
+            if (distance <= -1e-4) {
+                cout << "      point " << p.ToString() << " failed with distance " << distance << endl;
+                return -1;
+            } else
+                cout << "      point " << p.ToString() << " passed with distance " << distance << endl;            
+        }
+    }
+
+    return 0;
     
     int iterations = argc >= 3 ? atoi(argv[2]) : 1; // # iterations
     Color* cs = NULL;
