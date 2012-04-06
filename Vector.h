@@ -7,6 +7,8 @@
 #include <string>
 #include <iostream>
 
+enum Axis {X = 0, Y = 1, Z = 2, U = 3, V = 4};
+
 template <class T>
 struct Vec3 {
     T x, y, z;
@@ -91,6 +93,13 @@ struct Vec3 {
 typedef Vec3<float> Vector3;
 typedef Vec3<double> Color;
 
+
+template <class T>
+inline T Dot(const Vec3<T>& lhs, const Vec3<T>& rhs) {
+    return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
+}
+
+
 template <class T>
 struct Vec5 {
     T x, y, z, u, v;
@@ -116,10 +125,5 @@ struct Vec5 {
 };
 
 typedef Vec5<float> Vector5;
-
-template <class T>
-inline T Dot(const Vec3<T>& lhs, const Vec3<T>& rhs) {
-    return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
-}
 
 #endif
