@@ -749,88 +749,11 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
     }
 }
 
-
-
-inline Vector3 TestDir(SignedAxis axis, float u, float v) {
-    switch(axis) {
-    case posX:
-        return Vector3(1.0f, u, v);
-    case negX:
-        return Vector3(-1.0f, u, v);
-    case posY:
-        return Vector3(u, 1.0f, v);
-    case negY:
-        return Vector3(u, -1.0f, v);
-    case posZ:
-        return Vector3(u, v, 1.0f);
-    case negZ:
-        return Vector3(u, v, -1.0f);
-    }        
-}
-
 int main(int argc, char *argv[]){
     
     sqrtSamples = argc >= 2 ? atoi(argv[1]) : 1; // # samples
     samples = sqrtSamples * sqrtSamples;
 
-    for (int a = 0; a < 6; ++a) {
-
-        cout << "=== Testing signed axis " << a << " ===" << endl;
-        
-        vector<HyperRay> rays = vector<HyperRay>(4);
-        // float uMax = Rand01() * 0.5f - 0.2f;
-        // float uMin = Lerp(-0.3f, uMax, Rand01());
-        // float vMax = Rand01() * 0.5f - 0.2f;
-        // float vMin = Lerp(-0.3f, vMax, Rand01());
-        float uMax = 0.25f;
-        float uMin = -0.25f;
-        float vMax = 0.25f;
-        float vMin = -0.25f;
-
-        rays[0] = HyperRay(Ray(Vector3(-1,-1,-1), TestDir((SignedAxis)a, uMax, vMax)));
-        rays[1] = HyperRay(Ray(Vector3(-1,-1,-1), TestDir((SignedAxis)a, uMax, vMin)));
-        rays[2] = HyperRay(Ray(Vector3( 1, 1, 1), TestDir((SignedAxis)a, uMin, vMax))); 
-        rays[3] = HyperRay(Ray(Vector3( 1, 1, 1), TestDir((SignedAxis)a, uMin, vMin)));
-        HyperCube c = HyperCube((SignedAxis)a, rays.begin(), 4);
-
-        cout << "  cube " << c.ToString() << endl;
-
-        for(int d = 0; d < 5; ++d) {
-            cout << "    test axis " << d << endl;
-
-            // @TODO add lower plane
-            Plane upper = c.UpperBoundingPlane((Axis)d);
-            
-            // cout << "    upper plane " << upper.ToString() << " with point " <<  (upper.GetNormal() * upper.GetDistance()).ToString() << endl;
-            
-            // Test all corners of the box. They should all have a positive
-            // distance to indicate that they are inside the hyper cube.
-            for (float x = -1; x < 2.0f; x += 2.0f)
-                for (float y = -1; y < 2.0f; y += 2.0f)
-                    for (float z = -1; z < 2.0f; z += 2.0f) {
-                        Vector3 p = Vector3(x,y,z);
-                        float distance = upper.DistanceTo(p);
-                        if (distance <= -1e-4) {
-                            cout << "      point " << p.ToString() << " failed with distance " << distance << endl;
-                            return -1;
-                        } else
-                            cout << "      point " << p.ToString() << " passed with distance " << distance << endl;
-                    }
-
-            // Test a point extended along the center line of the hyper cube
-            Ray r(Vector3(0, 0, 0), TestDir((SignedAxis)a, c.cube.u.Middle(), c.cube.v.Middle()));
-            Vector3 p = r.PositionAt(500.0f);
-            float distance = upper.DistanceTo(p);
-            if (distance <= -1e-4) {
-                cout << "      point " << p.ToString() << " failed with distance " << distance << endl;
-                return -1;
-            } else
-                cout << "      point " << p.ToString() << " passed with distance " << distance << endl;            
-        }
-    }
-
-    return 0;
-    
     int iterations = argc >= 3 ? atoi(argv[2]) : 1; // # iterations
     Color* cs = NULL;
 
