@@ -90,14 +90,23 @@ struct Vec3 {
     }
 };
 
-typedef Vec3<float> Vector3;
-typedef Vec3<double> Color;
-
-
 template <class T>
 inline T Dot(const Vec3<T>& lhs, const Vec3<T>& rhs) {
     return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
 }
+
+/**
+ * Stream operator to ease the use printing values.
+ */
+template <class T>
+std::ostream& operator<<(std::ostream& os, const Vec3<T>& v) {
+    os << v.ToString();
+    return os;
+}
+
+typedef Vec3<float> Vector3;
+typedef Vec3<double> Color;
+
 
 
 template <class T>
@@ -124,6 +133,16 @@ struct Vec5 {
     }
 };
 
+/**
+ * Stream operator to ease the use printing values.
+ */
+template <class T>
+std::ostream& operator<<(std::ostream& os, const Vec5<T>& v) {
+    os << v.ToString();
+    return os;
+}
+
 typedef Vec5<float> Vector5;
+
 
 #endif
