@@ -572,8 +572,6 @@ void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float
     if ((long)rayCount * (long)sphereCount <= (long)16 * ((long)rayCount + (long)sphereCount)) {
         if (print) {
             for (int i = -1; i < level; ++i) cout << "  ";
-            cout << (rayCount * sphereCount) << " <= " << (16 * (rayCount + sphereCount)) << endl;
-            for (int i = -1; i < level; ++i) cout << "  ";
             cout << "Exhaustive with index valeus: " << rayOffset << " -> " << rayCount << 
                 ", sphere: " << sphereOffset << " -> " << sphereCount << 
                 ", [min: " << coneMin << ", range: " << coneRange << "]" << endl;
