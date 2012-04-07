@@ -240,9 +240,9 @@ struct HyperCube {
         return Plane(normal, point);
     }
         
-    inline std::string ToString() const {
+    inline std::string ToString(const int precision = 2) const {
         std::ostringstream out;
-        out << "[axis: " << axis << ", cube: " << cube.ToString() << "]";
+        out << "[axis: " << axis << ", cube: " << cube.ToString(precision) << "]";
         return out.str();
     }
 
@@ -277,6 +277,65 @@ inline Vector3 TestBoundingPlanesDir(SignedAxis axis, float u, float v) {
     }        
 }
 
+int TestBoundingPlanes(const HyperCube& c) {
+    
+    Vector3 dir0 = TestBoundingPlanesDir(c.axis, c.cube.u.max, c.cube.v.max);
+    Vector3 dir1 = TestBoundingPlanesDir(c.axis, c.cube.u.max, c.cube.v.min);
+    Vector3 dir2 = TestBoundingPlanesDir(c.axis, c.cube.u.min, c.cube.v.max);
+    Vector3 dir3 = TestBoundingPlanesDir(c.axis, c.cube.u.min, c.cube.v.min);
+
+    for(int d = 0; d < 5; ++d) {
+        cout << "    test axis " << d << endl;
+        
+        vector<Vector3> points;
+        // Test all corners of the box.
+        for (float x = -1; x < 2.0f; x += 2.0f)
+            for (float y = -1; y < 2.0f; y += 2.0f)
+                for (float z = -1; z < 2.0f; z += 2.0f) {
+                    Vector3 p = Vector3(x < 0 ? c.cube.x.min : c.cube.x.max,
+                                        y < 0 ? c.cube.y.min : c.cube.y.max,
+                                        z < 0 ? c.cube.z.min : c.cube.z.max);
+                    points.push_back(p);
+                    points.push_back(p + dir0 * (1.0f + Rand01() * 30.0f));
+                    points.push_back(p + dir1 * (1.0f + Rand01() * 30.0f));
+                    points.push_back(p + dir2 * (1.0f + Rand01() * 30.0f));
+                    points.push_back(p + dir3 * (1.0f + Rand01() * 30.0f));
+                }
+        
+        // Test a point extended along the center line of the hyper cube
+        Ray r(Vector3(0, 0, 0), TestBoundingPlanesDir(c.axis, c.cube.u.Middle(), c.cube.v.Middle()));
+        points.push_back(r.PositionAt(500.0f));
+        
+        Plane upper = c.UpperBoundingPlane((Axis)d);
+        cout << "    upper plane " << upper.ToString(4) << endl;
+        
+        for (int i = 0; i < points.size(); ++i) {
+            Vector3 p  = points[i];
+            float distance = upper.DistanceTo(p);
+            if (distance <= -1e-4) {
+                cout << "      point " << p.ToString() << " FAILED with distance " << distance << endl;
+                return -1;
+            } else
+                ; // cout << "      point " << p.ToString() << " passed with distance " << distance << endl;
+        }
+        
+        Plane lower = c.LowerBoundingPlane((Axis)d);
+        cout << "    lower plane " << lower.ToString(4) << endl;
+        
+        for (int i = 0; i < points.size(); ++i) {
+            Vector3 p  = points[i];
+            float distance = lower.DistanceTo(p);
+            if (distance <= -1e-4) {
+                cout << "      point " << p.ToString() << " FAILED with distance " << distance << endl;
+                return -1;
+            } else
+                ; // cout << "      point " << p.ToString() << " passed with distance " << distance << endl;
+        }
+    }
+    
+    return 0;
+}
+
 int TestBoundingPlanes() {
 
     for (int a = 0; a < 6; ++a) {
@@ -289,6 +348,11 @@ int TestBoundingPlanes() {
         float vMax = Rand01() * 0.5f - 0.2f;
         float vMin = Lerp(-0.3f, vMax, Rand01());
 
+        Vector3 dir0 = TestBoundingPlanesDir((SignedAxis)a, uMax, vMax);
+        Vector3 dir1 = TestBoundingPlanesDir((SignedAxis)a, uMax, vMin);
+        Vector3 dir2 = TestBoundingPlanesDir((SignedAxis)a, uMin, vMax);
+        Vector3 dir3 = TestBoundingPlanesDir((SignedAxis)a, uMin, vMin);
+
         rays[0] = HyperRay(Ray(Vector3(-1,-1,-1), TestBoundingPlanesDir((SignedAxis)a, uMax, vMax)));
         rays[1] = HyperRay(Ray(Vector3(-1,-1,-1), TestBoundingPlanesDir((SignedAxis)a, uMax, vMin)));
         rays[2] = HyperRay(Ray(Vector3( 1, 1, 1), TestBoundingPlanesDir((SignedAxis)a, uMin, vMax))); 
@@ -296,66 +360,12 @@ int TestBoundingPlanes() {
         HyperCube c = HyperCube((SignedAxis)a, rays.begin(), 4);
 
         cout << "  cube " << c.ToString() << endl;
-
-        for(int d = 0; d < 5; ++d) {
-            cout << "    test axis " << d << endl;
-
-            Plane upper = c.UpperBoundingPlane((Axis)d);
-            cout << "    upper plane " << upper.ToString() << endl;
-            
-            // Test all corners of the box. They should all have a positive
-            // distance to indicate that they are inside the hyper cube.
-            for (float x = -1; x < 2.0f; x += 2.0f)
-                for (float y = -1; y < 2.0f; y += 2.0f)
-                    for (float z = -1; z < 2.0f; z += 2.0f) {
-                        Vector3 p = Vector3(x,y,z);
-                        float distance = upper.DistanceTo(p);
-                        if (distance <= -1e-4) {
-                            cout << "      point " << p.ToString() << " failed with distance " << distance << endl;
-                            return -1;
-                        } else
-                            cout << "      point " << p.ToString() << " passed with distance " << distance << endl;
-                    }
-
-            // Test a point extended along the center line of the hyper cube
-            Ray r(Vector3(0, 0, 0), TestBoundingPlanesDir((SignedAxis)a, c.cube.u.Middle(), c.cube.v.Middle()));
-            Vector3 p = r.PositionAt(500.0f);
-            float distance = upper.DistanceTo(p);
-            if (distance <= -1e-4) {
-                cout << "      point " << p.ToString() << " failed with distance " << distance << endl;
-                return -1;
-            } else
-                cout << "      point " << p.ToString() << " passed with distance " << distance << endl;            
-
-            Plane lower = c.LowerBoundingPlane((Axis)d);
-            cout << "    lower plane " << lower.ToString() << endl;
-            
-            // Test all corners of the box. They should all have a positive
-            // distance to indicate that they are inside the hyper cube.
-            for (float x = -1; x < 2.0f; x += 2.0f)
-                for (float y = -1; y < 2.0f; y += 2.0f)
-                    for (float z = -1; z < 2.0f; z += 2.0f) {
-                        Vector3 p = Vector3(x,y,z);
-                        float distance = lower.DistanceTo(p);
-                        if (distance <= -1e-4) {
-                            cout << "      point " << p.ToString() << " failed with distance " << distance << endl;
-                            return -1;
-                        } else
-                            cout << "      point " << p.ToString() << " passed with distance " << distance << endl;
-                    }
-
-            // Test a point extended along the center line of the hyper cube
-            distance = lower.DistanceTo(p);
-            if (distance <= -1e-4) {
-                cout << "      point " << p.ToString() << " failed with distance " << distance << endl;
-                return -1;
-            } else
-                cout << "      point " << p.ToString() << " passed with distance " << distance << endl;            
-        }
+        
+        int t = TestBoundingPlanes(c);
+        if (t < 0) return t;
     }
-    
+
     return 0;
 }
-
 
 #endif
