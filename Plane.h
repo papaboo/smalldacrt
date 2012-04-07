@@ -61,4 +61,12 @@ public:
 
 };
 
+/**
+ * Stream operator to ease the use of ToString method.
+ */
+std::ostream& operator<<(std::ostream& os, const Plane& p) {
+    os << p.ToString();
+    return os;
+}
+
 #endif //_SMALL_PLANE_H_
