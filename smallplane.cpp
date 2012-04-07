@@ -136,6 +136,70 @@ inline std::vector<BoundedRay> CreateRays() {
     return rays;
 }
 
+void SimpleShade(vector<BoundedRay>& rays, const vector<int>& rayIndices,
+                 const vector<Fragment*>& frags, 
+                 const vector<Sphere>& spheres, const vector<Hit>& hits,
+                 vector<int>& nextIndices, int &nextOffset) {
+    
+    for (int i = 0; i < rayIndices.size(); ++i) {
+        const int rayID = rayIndices[i];
+        const int sphereID = hits[rayID].sphereID;
+
+        if (sphereID == -1) continue;
+
+        const Ray ray = rays[rayID].ToRay();
+        const Sphere sphere = spheres[sphereID];
+        const Vector3 hitPos = ray.origin + ray.dir * rays[rayID].t;
+        const Vector3 norm = (hitPos - sphere.position).Normalize();
+        const Vector3 nl = Dot(norm, ray.dir) < 0 ? norm : norm * -1;
+
+        if (++(frags[rayID]->depth) > 5) {
+            float mod = 0.5f + 0.5f * nl.y;
+            frags[rayID]->emission = sphere.color * mod;
+            continue;
+        }
+
+        switch(sphere.reflection) {
+        case SPECULAR: {
+            Vector3 reflect = ray.dir - nl * 2 * Dot(nl, ray.dir);
+            rays[rayID] = BoundedRay(HyperRay(Ray(hitPos + reflect * 0.01f, reflect)));
+            nextIndices[nextOffset++] = rayID;
+            break;
+        }
+        case REFRACTING: {
+            Vector3 reflect = ray.dir - norm * 2.0f * Dot(norm, ray.dir);
+            bool into = Dot(norm, nl) > 0.0f;
+            float nc = 1.0f; 
+            float nt = 1.5f;
+            float nnt = into ? nc/nt : nt/nc;
+            float ddn = Dot(ray.dir, nl);
+            float cos2t = 1.0f - nnt * nnt * (1.0f - ddn * ddn);
+            // If total internal reflection
+            if (cos2t < 0.0f) {
+                rays[rayID] = BoundedRay(HyperRay(Ray(hitPos + reflect * 0.1f, reflect)));
+            } else {
+
+                Vector3 tDir = (ray.dir * nnt - norm * ((into?1.0f:-1.0f) * (ddn*nnt+sqrt(cos2t)))).Normalize();
+                float a=nt-nc, b=nt+nc, R0=a*a/(b*b), c = 1-(into?-ddn : Dot(tDir, norm));
+                float Re=R0+(1-R0)*c*c*c*c*c,Tr=1-Re;
+                float P=0.25f + 0.5f * Re; 
+                float RP = Re / P, TP = Tr / (1.0f-P);
+                if (Rand01() < P) // reflection
+                    rays[rayID] = BoundedRay(HyperRay(Ray(hitPos + reflect * 0.01f, reflect)));
+                else 
+                    rays[rayID] = BoundedRay(HyperRay(Ray(hitPos + tDir * 0.01f, tDir)));
+                nextIndices[nextOffset++] = rayID;
+            }
+            break;
+        }
+        default:
+            float mod = 0.5f + 0.5f * nl.y;
+            frags[rayID]->emission = sphere.color * mod;
+            break;
+        }
+    }
+}
+
 void Shade(vector<BoundedRay>& rays, vector<int>& rayIndices,
            const vector<Fragment*>& frags, 
            const vector<Sphere>& spheres, const vector<Hit>& hits,
@@ -244,24 +308,24 @@ struct PartitionSpheresByPlanes {
     PartitionSpheresByPlanes(const vector<Sphere>& spheres, const HyperCube& cube)
         : spheres(spheres) {
         int p = 0;
-        if (cube.axis != posX)
-            planes[p++] = cube.UpperBoundingPlane(X);
         if (cube.axis != negX)
+            planes[p++] = cube.UpperBoundingPlane(X);
+        if (cube.axis != posX)
             planes[p++] = cube.LowerBoundingPlane(X);
-        if (cube.axis != posY)
-            planes[p++] = cube.UpperBoundingPlane(Y);
         if (cube.axis != negY)
+            planes[p++] = cube.UpperBoundingPlane(Y);
+        if (cube.axis != posY)
             planes[p++] = cube.LowerBoundingPlane(Y);
-        if (cube.axis != posZ)
-            planes[p++] = cube.UpperBoundingPlane(Z);
         if (cube.axis != negZ)
+            planes[p++] = cube.UpperBoundingPlane(Z);
+        if (cube.axis != posZ)
             planes[p++] = cube.LowerBoundingPlane(Z);
     }
     bool operator()(int i) { 
         const Sphere sphere = spheres[i];
         for (int p = 0; p < 5; ++p) {
             float distance = planes[p].DistanceTo(sphere.position);
-            if (distance + sphere.radius < 1e-4)
+            if (distance + sphere.radius <= -1e-4)
                 return false;
         }
         return true;
@@ -377,6 +441,7 @@ inline void DacrtByRays(const HyperCube& cube, const int level,
     spherePivot = 
         std::partition(begin, begin + sphereCount, 
                        PartitionSpheresByPlanes(spheres, upperCube));
+    newSphereCount = spherePivot - begin;
     
     // Perform Dacrt
     Dacrt(upperCube, level+1, 
@@ -397,15 +462,17 @@ void Dacrt(const HyperCube& cube, const int level,
     
     // The termination criteria expreses that once the exhaustive O(r * s)
     // search is faster than performing another split we terminate recursion.
-    if ((long)rayCount * (long)sphereCount <= (long)16 * ((long)rayCount + (long)sphereCount)) {
+    if (level >= 3 || (long)rayCount * (long)sphereCount <= (long)16 * ((long)rayCount + (long)sphereCount)) {
         if (print) {
-            for (int i = -1; i < level; ++i) cout << "  ";
-            cout << (rayCount * sphereCount) << " <= " << (16 * (rayCount + sphereCount)) << endl;
             for (int i = -1; i < level; ++i) cout << "  ";
             cout << "Exhaustive with index valeus: " << rayOffset << " -> " << rayCount << 
                 ", sphere: " << sphereOffset << " -> " << sphereCount << endl;
             for (int i = -1; i < level; ++i) cout << "  ";
             cout << " +---Cube: " << cube.ToString() << endl;
+            for (int i = -1; i < level; ++i) cout << "  ";
+            for (int o = sphereOffset; o < sphereOffset + sphereCount; ++o)
+                cout << ", " << sphereIDs[o];
+            cout << endl;
         }
         
         Exhaustive(rays, rayIDs, rayOffset, rayCount,
@@ -417,7 +484,11 @@ void Dacrt(const HyperCube& cube, const int level,
             cout << "Dacrt with ray valeus: " << rayOffset << " -> " << rayCount << 
                 ", sphere: " << sphereOffset << " -> " << sphereCount << endl;
             for (int i = -1; i < level; ++i) cout << "  ";
-            cout << " +---Cube: " << cube.ToString() << endl;
+            cout << " +---Cube: " << cube.ToString(4) << endl;
+            for (int i = -1; i < level; ++i) cout << "  ";
+            for (int o = sphereOffset; o < sphereOffset + sphereCount; ++o)
+                cout << ", " << sphereIDs[o];
+            cout << endl;
         }
         
         DacrtByRays(cube, level,
@@ -465,7 +536,7 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
             if (rayCount == 0) continue;
             
             const HyperCube hc = CreateHyperCube((SignedAxis)a, rays, rayIndices.begin(), rayCount);
-            
+
             // Partition spheres according to hypercube
             vector<int> sphereIDs(spheres.size());
             float min = 1e30, max = 0;
@@ -503,6 +574,8 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
 }
 
 int main(int argc, char *argv[]){
+
+    // return TestBoundingPlanes();
     
     sqrtSamples = argc >= 2 ? atoi(argv[1]) : 1; // # samples
     samples = sqrtSamples * sqrtSamples;
@@ -549,7 +622,7 @@ int main(int argc, char *argv[]){
         }
     }   
 
-    SavePPM("coneimage.ppm", WIDTH, HEIGHT, cs);
+    SavePPM("planeimage.ppm", WIDTH, HEIGHT, cs);
     
     return 0;
 }
