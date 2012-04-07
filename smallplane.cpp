@@ -462,7 +462,7 @@ void Dacrt(const HyperCube& cube, const int level,
     
     // The termination criteria expreses that once the exhaustive O(r * s)
     // search is faster than performing another split we terminate recursion.
-    if (level >= 3 || (long)rayCount * (long)sphereCount <= (long)16 * ((long)rayCount + (long)sphereCount)) {
+    if ((long)rayCount * (long)sphereCount <= (long)16 * ((long)rayCount + (long)sphereCount)) {
         if (print) {
             for (int i = -1; i < level; ++i) cout << "  ";
             cout << "Exhaustive with index valeus: " << rayOffset << " -> " << rayCount << 
