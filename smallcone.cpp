@@ -374,65 +374,6 @@ struct PartitionRaysByV {
  * bounding cone, geometry is split by calculating and upper and lower splitting
  * plane and testing geometry against that.
  */
-inline void DacrtByRaysUsingPlanes(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
-                                   vector<BoundedRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
-                                   const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
-                                   vector<Hit> &hits) {
-
-    rayDacrtRays += rayCount;
-    rayDacrtSpheres += sphereCount;
-
-    // Split the hypercube along the largest dimension and partition the ray ids
-    float xRange = cube.cube.x.Range();
-    float yRange = cube.cube.y.Range();
-    float zRange = cube.cube.z.Range();
-    float uRange = cube.cube.u.Range();
-    float vRange = cube.cube.v.Range();
-    float maxSpread = std::max(uRange, vRange);
-    float maxPos = std::max(xRange, std::max(yRange, zRange));
-
-    Axis split;
-    if (maxSpread > maxPos * 0.1f) // Split along the ray directions
-        split = uRange > vRange ? U : V;
-    else // Split along the ray positions
-        split = xRange > yRange && xRange > zRange ? X : (yRange > zRange ? Y : Z);
-
-    // Split the rays
-    vector<int>::iterator begin = rayIDs.begin() + rayOffset;
-    vector<int>::iterator rayPivot;
-    switch (split) {
-    case X:
-        rayPivot = std::partition(begin, begin + rayCount,
-                                  PartitionRaysByX(rays, cube.cube.x.Middle()));
-        break;
-    case Y:
-        rayPivot = std::partition(begin, begin + rayCount,
-                                  PartitionRaysByY(rays, cube.cube.y.Middle()));
-        break;
-    case Z:
-        rayPivot = std::partition(begin, begin + rayCount,
-                                  PartitionRaysByZ(rays, cube.cube.z.Middle()));
-        break;
-    case U:
-        rayPivot = std::partition(begin, begin + rayCount,
-                                  PartitionRaysByU(rays, cube.cube.u.Middle()));
-        break;
-    case V:
-        rayPivot = std::partition(begin, begin + rayCount,
-                                  PartitionRaysByV(rays, cube.cube.v.Middle()));
-        break;
-    }
-    int newRayCount = rayPivot - begin;
-
-    // Cubes and splitting planes
-    HyperCube lowerCube = CreateHyperCube(cube.axis, rays, begin, newRayCount);
-    int upperRayOffset = rayOffset + newRayCount;
-    int upperRayCount = rayCount - newRayCount;
-    HyperCube upperCube = CreateHyperCube(cube.axis, rays, rayIDs.begin() + upperRayOffset, upperRayCount);
-    Plane lowerSplitPlane, upperSplitPlane;
-        
-}
-
 
 /**
  * A simple implementation based on **** without caching.
