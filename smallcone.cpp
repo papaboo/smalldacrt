@@ -225,8 +225,7 @@ void Shade(vector<BoundedRay>& rays, vector<int>& rayIndices,
         Color f = sphere.color;
         const float maxRefl = f.x>f.y && f.x>f.z ? f.x : f.y>f.z ? f.y : f.z;
         if (++(frags[rayID]->depth) > 5)
-            if (Rand01() < maxRefl)
-            //if (false)
+            if (false && Rand01() < maxRefl)
                 f = f * (1 / maxRefl); 
             else {
                 frags[rayID]->emission += frags[rayID]->f * sphere.emission;
