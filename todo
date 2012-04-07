@@ -1,7 +1,3 @@
-Try HyperCube-Sphere intersection instead of using cones. (Cones may be fast,
-but the initial split down the middle of a scene of evenly distributed spheres
-only removes ~5%)
-
 If doing HyperCube-Sphere, can we simplify the intersection by using our
 knowledge of which 'dimension' was split.
 
