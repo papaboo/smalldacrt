@@ -23,8 +23,8 @@ public:
      * Plane constructor
      *
      * @param normal. The normal of the plane. Assumed to be normalized by the caller.
-     * @distance. The distance to origo modulated by the length of the normal
-     * (if not normalized). D in the plane equation.
+     * @distance. The signed distance to origo modulated by the length of the
+     * normal (if not normalized). D in the plane equation.
      */
     Plane(Vector3 normal = Vector3(1,0,0), float distance = 0)
         : normal(normal), distance(distance) {}
@@ -43,11 +43,11 @@ public:
     inline const float GetDistance() const { return distance; }
 
     /**
-     * Calculates the distance from the point p to the plane. If the planes
-     * normal is not normalized then the distance needs to be divided by the
-     * length of the normal.
+     * Calculates the signed distance from the point p to the plane. If the
+     * planes normal is not normalized then the distance needs to be divided by
+     * the length of the normal.
      *
-     * @return The distance between the plane and p.
+     * @return The signed distance between the plane and p.
      */
     inline float DistanceTo(const Vector3& p) {
         return Dot(normal, p) + distance;
