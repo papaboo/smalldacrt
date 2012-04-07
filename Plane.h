@@ -62,7 +62,7 @@ public:
 };
 
 /**
- * Stream operator to ease the use of ToString method.
+ * Stream operator to ease the use printing values.
  */
 std::ostream& operator<<(std::ostream& os, const Plane& p) {
     os << p.ToString();
