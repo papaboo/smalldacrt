@@ -26,13 +26,17 @@ using std::endl;
 #include "Ray.h"
 #include "Sphere.h"
 #include "AABB.h"
+#include "Math.h"
 #include "Utils.h"
 #include "Scenes.h"
 
-//const int WIDTH = 32, HEIGHT = 32;
 const int WIDTH = 512, HEIGHT = 512;
 int sqrtSamples;
 int samples;
+
+long exhaustives = 0;
+long rayAABBCheck = 0;
+long spheresPartitioned = 0;
 
 inline int Index(const int x, const int y, const int sub) {
     return (x + y * WIDTH) * samples + sub;
@@ -162,6 +166,8 @@ void CreateBVH(const AABB& parentAABB, const unsigned int nodeIndex, vector<BVHN
         // Find splitting plane
         AABB::Dimension largestDim = aabb.GetLargestDimension();
 
+        spheresPartitioned += sphereEnd - sphereBegin;
+
         std::vector<Sphere>::iterator spherePivot;
         AABB leftAABB = aabb, rightAABB = aabb;
         switch(largestDim) {
@@ -242,6 +248,8 @@ vector<Ray> CreateRays() {
 inline float Exhaustive(const Ray charles, float t, const BVHNode& node, 
                         const vector<Sphere> spheres, unsigned int &sphereId) {
 
+    exhaustives += node.GetPrimitiveRange();
+
     for (unsigned int p = node.GetFirstPrimitive(); 
          p < node.GetFirstPrimitive() + node.GetPrimitiveRange(); ++p) {
 
@@ -310,6 +318,8 @@ inline float ItrIntersect(const Ray charles, const vector<BVHNode>& nodes,
     stack.push(std::pair<int, float>(0, 0.0f));
 
     do {
+        rayAABBCheck += 2;
+
         std::pair<int, float> next = stack.top(); stack.pop();
         if (t < next.second) continue;
         
@@ -346,7 +356,7 @@ Color Shade(const Ray ray, const int depth, const vector<BVHNode>& nodes, const 
     // cout << "Shade: " << ray.ToString() << endl;
     const float t = ItrIntersect(ray, nodes, spheres, sphereId);
     // cout << endl;
-    if (t <= 0.0f)
+    if (sphereId == -1)
         return Color(0,0,0); // Background color
 
     const Sphere& sphere = spheres[sphereId];
@@ -379,7 +389,7 @@ int main(int argc, char *argv[]){
     
     int iterations = argc >= 3 ? atoi(argv[2]) : 1; // # iterations
 
-    vector<Sphere> spheres = Scenes::CornellBox();
+    vector<Sphere> spheres = Scenes::SphereBox();
     vector<Ray> rays = CreateRays();
     
     vector<BVHNode> nodes = vector<BVHNode>(1);
@@ -405,6 +415,10 @@ int main(int argc, char *argv[]){
     //         cout << sphereIds[Index(x,y,0)] << " ";
     //     cout << endl;
     // }
+
+    cout << "  [exhaustives: " << exhaustives << 
+        ", ray/AABB checks: " << rayAABBCheck << ", spheres partitioned: " << spheresPartitioned << endl;
+
 
     Color* cs = new Color[WIDTH * HEIGHT];
     for (int x = 0; x < WIDTH; ++x)
