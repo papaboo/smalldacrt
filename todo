@@ -1,14 +1,17 @@
 If doing HyperCube-Sphere, can we simplify the intersection by using our
-knowledge of which 'dimension' was split.
+knowledge of which 'dimension' was split. Perhaps always test the most changed
+bounding planes along all three prime dimension? Some useless tests will be
+performed, but it scales well with dataparallel architectures. (SIMD, GPUs)
 
-Use sphere-cones instead and advance their origin by minT along their direction
+Use sphere-cones instead and advance their origin by minT along their
+direction. This will also require updating their radius!
 
 Add DacrtByDistance again. Only do it at the root and leafs?
 
 Test data! Exhaustive intersections and partitionings(rays and spheres)
 
+Test different termination criterias
+
 Add packets.
 
 Try an (implicit) ray-hierarchy?
-
-Test different termination criterias
