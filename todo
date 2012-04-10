@@ -4,7 +4,8 @@ bounding planes along all three prime dimension? Some useless tests will be
 performed, but it scales well with dataparallel architectures. (SIMD, GPUs)
 
 Use sphere-cones instead and advance their origin by minT along their
-direction. This will also require updating their radius!
+direction. This will also require updating their radius! May be slightly slower,
+but ordinary cones can't handle 2 parallel rays.
 
 Add DacrtByDistance again. Only do it at the root and leafs?
 
@@ -15,3 +16,5 @@ Test different termination criterias
 Add packets.
 
 Try an (implicit) ray-hierarchy?
+
+OpenCL impl

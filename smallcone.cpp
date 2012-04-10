@@ -695,8 +695,7 @@ int main(int argc, char *argv[]){
     int iterations = argc >= 3 ? atoi(argv[2]) : 1; // # iterations
     Color* cs = NULL;
 
-    //vector<Sphere> spheres = Scenes::CornellBox();
-    vector<Sphere> spheres = Scenes::SphereBox();
+    vector<Sphere> spheres = Scenes::CornellBox();
 
     Fragment* frags = new Fragment[WIDTH * HEIGHT * samples];
     vector<Fragment*> rayFrags(WIDTH * HEIGHT * samples);
