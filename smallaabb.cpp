@@ -312,21 +312,34 @@ inline float Intersect(const Ray charles, const vector<BVHNode>& nodes,
  */
 inline float ItrIntersect(const Ray charles, const vector<BVHNode>& nodes, 
                           const vector<Sphere> spheres, unsigned int &sphereId) {
+    
+    // cout << "=== ItrIntersect:" << charles.ToString() << " ===" << endl;
+    
     sphereId = -1;
     float t = 1e30f;
-    stack<std::pair<int, float> > stack;// = stack<int>(60);
-    stack.push(std::pair<int, float>(0, 0.0f));
+    vector<std::pair<int, float> > stack(60);
+    int i = 0;
+    stack[i] = std::pair<int, float>(0, 0.0f);
 
     do {
-        rayAABBCheck += 2;
+        // cout << "\n----" << endl;
+        // for (int j = i; j >= 0; --j)
+        //     cout << "| " << j << ": " << stack[j].second << " - " << nodes[stack[j].first].ToString() << endl;
+        // cout << "----" << endl;
 
-        std::pair<int, float> next = stack.top(); stack.pop();
-        if (t < next.second) continue;
+        std::pair<int, float> next = stack[i]; --i;
+        if (t < next.second) {
+            // cout << i << "discard: " << nodes[next.first].ToString() << endl;
+            continue;
+        }
         
         BVHNode currentNode = nodes[next.first];
+
         if (currentNode.GetType() == BVHNode::LEAF) // Intersect leaf
             t = Exhaustive(charles, t, currentNode, spheres, sphereId);
         else {
+            rayAABBCheck += 2;
+        
             const BVHNode& left = nodes[currentNode.GetLeftChild()];
             float tLeft;
             if (!left.aabb.ClosestIntersection(charles, tLeft)) tLeft = 1e32f;
@@ -336,14 +349,14 @@ inline float ItrIntersect(const Ray charles, const vector<BVHNode>& nodes,
             if (!right.aabb.ClosestIntersection(charles, tRight)) tRight = 1e32f;
 
             if (tLeft < tRight) { // Intersect left first
-                if (tRight < t) stack.push(std::pair<int, float>(currentNode.GetRightChild(), tRight));
-                if (tLeft < t) stack.push(std::pair<int, float>(currentNode.GetLeftChild(), tLeft));
+                if (tRight < t) stack[++i] = std::pair<int, float>(currentNode.GetRightChild(), tRight);
+                if (tLeft < t) stack[++i] = std::pair<int, float>(currentNode.GetLeftChild(), tLeft);
             } else { // Intersect right first
-                if (tLeft < t) stack.push(std::pair<int, float>(currentNode.GetLeftChild(), tLeft));
-                if (tRight < t) stack.push(std::pair<int, float>(currentNode.GetRightChild(), tRight));
+                if (tLeft < t) stack[++i] = std::pair<int, float>(currentNode.GetLeftChild(), tLeft);
+                if (tRight < t) stack[++i] = std::pair<int, float>(currentNode.GetRightChild(), tRight);
             }
         }
-    } while (stack.size() > 0);
+    } while (i >= 0);
 
     return t;
 }
@@ -389,7 +402,8 @@ int main(int argc, char *argv[]){
     
     int iterations = argc >= 3 ? atoi(argv[2]) : 1; // # iterations
 
-    vector<Sphere> spheres = Scenes::SphereBox();
+    vector<Sphere> spheres = Scenes::CornellBox();
+    //vector<Sphere> spheres = Scenes::Test();
     vector<Ray> rays = CreateRays();
     
     vector<BVHNode> nodes = vector<BVHNode>(1);
@@ -401,7 +415,7 @@ int main(int argc, char *argv[]){
     PrintHierarchy(nodes);
     cout << endl;
     cout << endl;
-
+    
     Color* frags = new Color[rays.size()];
     for (int r = 0; r < rays.size(); ++r) {
         if ((r % 1024) == 0) fprintf(stderr,"\rRendering %i/%lu", r, rays.size());
@@ -409,13 +423,6 @@ int main(int argc, char *argv[]){
     }
     cout << endl;
     
-    // ASCII color art
-    // for (int y = 0; y < HEIGHT; ++y) {
-    //     for (int x = 0; x < WIDTH; ++x)
-    //         cout << sphereIds[Index(x,y,0)] << " ";
-    //     cout << endl;
-    // }
-
     cout << "  [exhaustives: " << exhaustives << 
         ", ray/AABB checks: " << rayAABBCheck << ", spheres partitioned: " << spheresPartitioned << endl;
 
