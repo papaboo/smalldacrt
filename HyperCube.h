@@ -4,6 +4,7 @@
 #include "AABB.h"
 #include "AABPenteract.h"
 #include "Cone.h"
+#include "SphereCone.h"
 #include "HyperRay.h"
 #include "Plane.h"
 #include "Math.h"
@@ -56,6 +57,29 @@ struct HyperCube {
         Vector3 apex = center - negOffset;
         
         return Cone(apex, dir, angle);
+    }
+
+    inline SphereCone SphereConeBounds() const {
+        Vector3 A = F(axis, cube.u.min, cube.v.max).Normalize();
+        Vector3 B = F(axis, cube.u.max, cube.v.min).Normalize();
+        Vector3 dir = ((A + B) * 0.5f).Normalize();
+        
+        Vector3 C = F(axis, cube.u.min, cube.v.min).Normalize();
+        Vector3 D = F(axis, cube.u.max, cube.v.max).Normalize();
+        
+        // Angle in degrees
+        float angle = acos(Dot(A, dir));
+        angle = std::max(angle, (float)acos(Dot(B, dir)));
+        angle = std::max(angle, (float)acos(Dot(C, dir)));
+        angle = std::max(angle, (float)acos(Dot(D, dir)));
+        
+        // Apex
+        Vector3 r0 = Vector3(cube.x.min, cube.y.min, cube.z.min);
+        Vector3 r1 = Vector3(cube.x.max, cube.y.max, cube.z.max);
+        Vector3 apex = (r0 + r1) * 0.5f;
+        float radius = (apex - r0).Length();
+        
+        return SphereCone(apex, dir, angle, radius);
     }
 
     inline AABB GetAABB() const {

@@ -29,9 +29,9 @@ using std::endl;
 #include "AABB.h"
 #include "AABPenteract.h"
 #include "Cone.h"
+#include "SphereCone.h"
 #include "Utils.h"
 #include "Scenes.h"
-#include "Plane.h"
 #include "Math.h"
 
 struct BoundedRay {
@@ -130,7 +130,7 @@ inline std::vector<BoundedRay> CreateRays() {
                     Vector3 rayDir = cx * (((subX + 0.5 + dx) / sqrtSamples + x) / WIDTH - 0.5) 
                         + cy * (((subY + 0.5 + dy) / sqrtSamples + y) / HEIGHT - 0.5) + cam.dir;
                     // TODO create hyperrays directly
-                    const Ray charles = Ray(cam.origin + rayDir * 130, rayDir.Normalize());
+                    const Ray charles = Ray(cam.origin + rayDir * 140, rayDir.Normalize());
                     rays[Index(x,y,subX,subY)] = BoundedRay(HyperRay(charles));
                 }
         }
@@ -305,17 +305,17 @@ inline void Exhaustive(vector<BoundedRay> &rays, vector<int> &rayIndices, const 
     }
 }
 
-void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
+void Dacrt(const HyperCube& cube, const SphereCone& cone, const int level, const float coneMin, const float coneRange,
            vector<BoundedRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
            vector<Hit> &hits);
 
 struct PartitionSpheresByCone {
     const vector<Sphere>& spheres;
-    const Cone cone;
+    const SphereCone cone;
     float &min, &max;
     float invSinAngle, cosAngleSqr;
-    PartitionSpheresByCone(const vector<Sphere>& spheres, const Cone cone, float &min, float &max)
+    PartitionSpheresByCone(const vector<Sphere>& spheres, const SphereCone cone, float &min, float &max)
         : spheres(spheres), cone(cone), min(min), max(max), 
           invSinAngle(1.0f / std::sin(cone.spreadAngle)), 
           cosAngleSqr(std::cos(cone.spreadAngle) * std::cos(cone.spreadAngle)) {}
@@ -377,7 +377,7 @@ struct PartitionRaysByV {
 /**
  * A simple implementation based on **** without caching.
  */
-inline void DacrtByRays(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
+inline void DacrtByRays(const HyperCube& cube, const SphereCone& cone, const int level, const float coneMin, const float coneRange,
                        vector<BoundedRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
                        const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
                        vector<Hit> &hits) {
@@ -418,7 +418,7 @@ inline void DacrtByRays(const HyperCube& cube, const Cone& cone, const int level
 
     // Cube and cone for the lower side
     HyperCube lowerCube = CreateHyperCube(cube.axis, rays, begin, newRayCount);
-    Cone lowerCone = lowerCube.ConeBounds();
+    SphereCone lowerCone = lowerCube.SphereConeBounds();
     
     // Partition spheres according to cone
     float min = coneMin + coneRange, max = coneMin;
@@ -445,7 +445,7 @@ inline void DacrtByRays(const HyperCube& cube, const Cone& cone, const int level
     int upperRayOffset = rayOffset + newRayCount;
     int upperRayCount = rayCount - newRayCount;
     HyperCube upperCube = CreateHyperCube(cube.axis, rays, rayIDs.begin() + upperRayOffset, upperRayCount);
-    Cone upperCone = upperCube.ConeBounds();
+    SphereCone upperCone = upperCube.SphereConeBounds();
     
     // Partition spheres according to cone
     min = coneMin + coneRange; max = coneMin;
@@ -513,7 +513,7 @@ struct PartitionSpheresByDistance {
 /**
  * Partition based on the distance from the apex.
  */
-inline void DacrtByDistance(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange, 
+inline void DacrtByDistance(const HyperCube& cube, const SphereCone& cone, const int level, const float coneMin, const float coneRange, 
                             vector<BoundedRay> &rays, vector<int> &rayIDs, int rayOffset, const int rayCount,
                             const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
                             vector<Hit> &hits) {
@@ -559,7 +559,7 @@ inline void DacrtByDistance(const HyperCube& cube, const Cone& cone, const int l
     }
 }
 
-void Dacrt(const HyperCube& cube, const Cone& cone, const int level, const float coneMin, const float coneRange,
+void Dacrt(const HyperCube& cube, const SphereCone& cone, const int level, const float coneMin, const float coneRange,
            vector<BoundedRay> &rays, vector<int> &rayIDs, const int rayOffset, const int rayCount,
            const vector<Sphere> &spheres, vector<int> &sphereIDs, const int sphereOffset, const int sphereCount,
            vector<Hit> &hits) {
@@ -647,7 +647,7 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
             if (rayCount == 0) continue;
             
             const HyperCube hc = CreateHyperCube((SignedAxis)a, rays, rayIndices.begin(), rayCount);
-            const Cone cone = hc.ConeBounds();
+            const SphereCone cone = hc.SphereConeBounds();
             
             // Partition spheres according to hypercube
             vector<int> sphereIDs(spheres.size());
@@ -657,7 +657,7 @@ void RayTrace(vector<Fragment*>& rayFrags, vector<Sphere>& spheres) {
 
             vector<int>::iterator spherePivot = 
                 std::partition(sphereIDs.begin(), sphereIDs.end(), 
-                               PartitionSpheresByCone(spheres, hc.ConeBounds(), min, max));
+                               PartitionSpheresByCone(spheres, hc.SphereConeBounds(), min, max));
             float dist = (hc.GetAABB().ClosestPointOnSurface(cone.apex) - cone.apex).Length();
             min = std::max(min, dist);
             int sphereCount = spherePivot - sphereIDs.begin();
