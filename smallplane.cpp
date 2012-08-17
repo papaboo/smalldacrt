@@ -28,7 +28,6 @@ using std::endl;
 #include "HyperRay.h"
 #include "AABB.h"
 #include "AABPenteract.h"
-#include "Cone.h"
 #include "Utils.h"
 #include "Scenes.h"
 #include "Plane.h"
@@ -127,7 +126,7 @@ inline std::vector<BoundedRay> CreateRays() {
                     Vector3 rayDir = cx * (((subX + 0.5 + dx) / sqrtSamples + x) / WIDTH - 0.5) 
                         + cy * (((subY + 0.5 + dy) / sqrtSamples + y) / HEIGHT - 0.5) + cam.dir;
                     // TODO create hyperrays directly
-                    const Ray charles = Ray(cam.origin + rayDir * 130, rayDir.Normalize());
+                    const Ray charles = Ray(cam.origin + rayDir * 140, rayDir.Normalize());
                     rays[Index(x,y,subX,subY)] = BoundedRay(HyperRay(charles));
                 }
         }
@@ -585,7 +584,7 @@ int main(int argc, char *argv[]){
     Color* cs = NULL;
 
     vector<Sphere> spheres = Scenes::CornellBox();
-    // vector<Sphere> spheres = Scenes::SphereBox();
+    //vector<Sphere> spheres = Scenes::SphereBox();
     //vector<Sphere> spheres = Scenes::Snow();
 
     Fragment* frags = new Fragment[WIDTH * HEIGHT * samples];
