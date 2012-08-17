@@ -76,8 +76,4 @@ struct Cone {
 
 };
 
-inline Cone Union(const Cone& lhs, const Cone& rhs) {
-    return lhs;
-}
-
 #endif
